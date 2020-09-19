@@ -7,6 +7,7 @@ import numpy as np
 class TestDataInstance(unittest.TestCase):
     test_data_a = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "z": [7, 8, 9]})
     test_data_b =  pd.DataFrame({"doi": [77, 88, 99]})
+    test_data_c =  pd.DataFrame({"nana": [2, 3, 5]})
     
     def test_sub(self):
         sub = eop.DataInstance(self.test_data_a.copy())
@@ -52,6 +53,14 @@ class TestDataInstance(unittest.TestCase):
         main = eop.X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.summary()[("sub", "summary")].loc[0], "1.0/4.0/7.0")
+
+    def test_sub_sub(self):
+        main = eop.DataInstance(self.test_data_b.copy())
+        sub = eop.A(self.test_data_a.copy())
+        sub2 = eop.B(self.test_data_c.copy())
+        main["sub"] = sub
+        main[("sub", "xxx")] = sub2
+        self.assertIsInstance(main[("sub", "xxx")], eop.B)
 
 if __name__ == '__main__':
     unittest.main()

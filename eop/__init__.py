@@ -127,6 +127,7 @@ class DataInstance(object):
             for item in key[:-1]:
                 if item not in dtypes:
                     dtypes[item] = (DataInstance, {})
+                dtypes = dtypes[item][1]
             dtypes[key[-1]] = (type(value), value.dtypes)
         else:
             self.df[key] = value
