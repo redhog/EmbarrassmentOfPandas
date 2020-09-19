@@ -33,12 +33,25 @@ class TestDataInstance(unittest.TestCase):
         self.assertIsInstance(main, eop.A)
         self.assertIsInstance(main["sub"], eop.B)
         
+    def test_method_type(self):
+        sub = eop.B(self.test_data_a.copy())
+        main = eop.A(self.test_data_b.copy())
+        main["sub"] = sub
+        self.assertIsInstance(main.head(), eop.A)
+        self.assertIsInstance(main.head()["sub"], eop.B)
+        
     def test_dtypes(self):
         sub = eop.Point3d(self.test_data_a.copy())
         main = eop.X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.df.dtypes[("doi", np.NaN)], np.dtype("int64"))
         self.assertEqual(main["sub"].df.dtypes[("x",)], np.dtype("float64"))
+
+    def test_summary(self):
+        sub = eop.Point3d(self.test_data_a.copy())
+        main = eop.X(self.test_data_b.copy())
+        main["sub"] = sub
+        self.assertEqual(main.summary()[("sub", "summary")].loc[0], "1.0/4.0/7.0")
 
 if __name__ == '__main__':
     unittest.main()
