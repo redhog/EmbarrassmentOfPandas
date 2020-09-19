@@ -38,7 +38,22 @@ class DataInstance(object):
         self.df = df
         self.dtypes = dtypes or copy_dtypes(type(self).dtypes)
         self._enforce_dtypes()
-        
+        self._save_dtypes()
+
+    def _save_dtypes(self):
+        for key, dtype in self.df.dtypes.items():
+            self._save_dtype(key, dtype)
+            
+    def _save_dtype(self, key, dtype):
+        while key and key[-1] in (None, np.NaN):
+            key = key[:-1]
+        dtypes = self.dtypes
+        for item in key[:-1]:
+            if item not in dtypes:
+                dtypes[item] = (None, {})
+            dtypes = dtypes[item][1]
+        dtypes[key[-1]] = dtype
+
     def _enforce_dtypes(self, prefix = (), dtypes = None):
         if dtypes is None: dtypes = self.dtypes
         for key, value in dtypes.items():
@@ -108,7 +123,6 @@ class DataInstance(object):
                 pad = (None,) * (self_keylen - other_keylen)
                 other_columns = [key + pad for key in other_columns]
             self.df[other_columns] = value.df
-            if not isinstance(key, tuple): key = (key,)
             dtypes = self.dtypes
             for item in key[:-1]:
                 if item not in dtypes:
@@ -116,6 +130,9 @@ class DataInstance(object):
             dtypes[key[-1]] = (type(value), value.dtypes)
         else:
             self.df[key] = value
+            if not isinstance(key, list): key = [key]
+            for subkey in key:
+                self._save_dtype(subkey, self.df.dtypes[subkey])
 
     def __delitem__(self, name):
         key = self._clean_key(name)
@@ -133,7 +150,7 @@ class DataInstance(object):
             
     def wrap(self, value):
         if isinstance(value, pd.DataFrame):
-            return type(self)(value)
+            return type(self)(value, copy_dtypes(self.dtypes))
         return value
     
     def __getattr__(self, name):
@@ -166,7 +183,7 @@ class A(DataInstance): pass
 
 class B(DataInstance): pass
 
-class Point3d(DataInstance):
+class Point3D(DataInstance):
     dtypes = {"x": np.dtype("float64"),
               "y": np.dtype("float64"),
               "z": np.dtype("float64")}
