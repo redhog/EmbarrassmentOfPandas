@@ -65,11 +65,18 @@ class TestDataInstance(unittest.TestCase):
         self.assertEqual(main.df.dtypes[("doi", "")], np.dtype("int64"))
         self.assertEqual(main["sub"].df.dtypes[("x",)], np.dtype("float64"))
 
+
     def test_summary(self):
         sub = Point3D(self.test_data_a.copy())
         main = X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.summary()[("sub", "[Point3D]", "summary")].loc[0], "1.0/4.0/7.0")
+
+    def test_summary_single_col(self):
+        main = eop.DataInstance(self.test_data_a.copy())
+        sub = X(self.test_data_b.copy())
+        main["sub"] = sub
+        self.assertEqual(main.summary()[("sub", "[X]", "doi", "[int64]")].loc[0], 77)
 
     def test_sub_sub(self):
         main = eop.DataInstance(self.test_data_b.copy())

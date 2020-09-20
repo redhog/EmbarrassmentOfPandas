@@ -134,10 +134,13 @@ class DataInstance(object):
 
     def _adapt_key(self, key):
         other_keylen = len(key)
-        self_keylen = len(self.df.columns[0])
+        self_keylen = len(self.df.columns.levels)
         if other_keylen > self_keylen:
-            pad = ("",) * (other_keylen - self_keylen)
-            self.df.columns = pd.MultiIndex.from_tuples(col + pad for col in self.df.columns)
+            if len(self.df.columns):
+                pad = ("",) * (other_keylen - self_keylen)
+                self.df.columns = pd.MultiIndex.from_tuples(col + pad for col in self.df.columns)
+            else:
+                self.df.columns = pd.MultiIndex([[""] for l in range(other_keylen)], [[] for l in range(other_keylen)])
         elif self_keylen > other_keylen:
             pad = ("",) * (self_keylen - other_keylen)
             key = key + pad
