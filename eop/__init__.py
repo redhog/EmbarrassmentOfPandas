@@ -18,14 +18,28 @@ class DataInstanceLoc(object):
             value = value.df
         self.di.df[key] = value
 
+class DataType(object):
+    def __init__(self, cls, dtypes):
+        self.cls = cls
+        self.dtypes = dtypes
+
+    def copy(self):
+        return type(self)(self.cls, copy_dtypes(self.dtypes))
+        
+    def __repr__(self):
+        if self.cls is None:
+            return repr(self.dtypes)
+        else:
+            return "%s(%s)" % (self.cls, repr(self.dtypes))
+        
 def copy_dtypes(dtypes):
     if isinstance(dtypes, dict):
-        return {key:copy_dtypes(value) for key, value in dtypes.items()}
-    elif isinstance(dtypes, tuple):
-        return (dtypes[0], copy_dtypes(dtypes[1]))
+        return {name:copy_dtypes(value) for name, value in dtypes.items()}
+    elif isinstance(dtypes, DataType):
+        return dtypes.copy()
     else:
         return dtypes
-        
+
 class DataInstance(object):
     dtypes = {}
     
@@ -49,16 +63,16 @@ class DataInstance(object):
             key = key[:-1]
         dtypes = self.dtypes
         for item in key[:-1]:
-            if item not in dtypes or not isinstance(dtypes[item], tuple):
-                dtypes[item] = (None, {})
-            dtypes = dtypes[item][1]
+            if item not in dtypes or not isinstance(dtypes[item], DataType):
+                dtypes[item] = DataType(None, {})
+            dtypes = dtypes[item].dtypes
         dtypes[key[-1]] = dtype
 
     def _enforce_dtypes(self, prefix = (), dtypes = None):
         if dtypes is None: dtypes = self.dtypes
         for key, value in dtypes.items():
-            if isinstance(value, tuple):
-                self._enforce_dtypes(prefix + (key,), value[1])
+            if isinstance(value, DataType):
+                self._enforce_dtypes(prefix + (key,), value.dtypes)
             else:
                 col = prefix + (key,)
                 if col not in self.df:
@@ -82,8 +96,8 @@ class DataInstance(object):
                 res = self._get_columns(item, dtypes)
                 if res is None:
                     return None
-                if isinstance(res, tuple):
-                    dtypes = res[1]
+                if isinstance(res, DataType):
+                    dtypes = res.dtypes
                 else:
                     dtypes = None
             return res
@@ -101,12 +115,12 @@ class DataInstance(object):
         key = self._clean_key(key)
         res = self.df[key]
         t = self._get_columns(key)
-        if isinstance(t, (dict, tuple)) and isinstance(res, pd.Series):
+        if isinstance(t, (dict, DataType)) and isinstance(res, pd.Series):
             res = pd.DataFrame({key: res}).T
         if isinstance(t, dict):
             return type(self)(res, t)
-        elif isinstance(t, tuple):
-            return t[0](res, t[1])
+        elif isinstance(t, DataType):
+            return t.cls(res, t.dtypes)
         else:
             return res
 
@@ -131,9 +145,9 @@ class DataInstance(object):
             dtypes = self.dtypes
             for item in key[:-1]:
                 if item not in dtypes:
-                    dtypes[item] = (DataInstance, {})
-                dtypes = dtypes[item][1]
-            dtypes[key[-1]] = (type(value), value.dtypes)
+                    dtypes[item] = DataType(DataInstance, {})
+                dtypes = dtypes[item].dtypes
+            dtypes[key[-1]] = DataType(type(value), value.dtypes)
             value = value.df
         if isinstance(value, pd.DataFrame) and not isinstance(key, list):
             other_columns = [key + col for col in value.columns]
@@ -157,8 +171,8 @@ class DataInstance(object):
             dtypes = self.dtypes
             for part in item[:-1]:
                 if part not in dtypes: break
-                if not isinstance(dtypes[part], tuple): break
-                dtypes = dtypes[part][1]
+                if not isinstance(dtypes[part], DataType): break
+                dtypes = dtypes[part].dtypes
             else:
                 del dtypes[item[-1]]
                 
@@ -189,11 +203,11 @@ class DataInstance(object):
         res = DataInstance(self.df.copy(), copy_dtypes(self.dtypes))
         for name, dtype in self.dtypes.items():
             del res[name]
-            if isinstance(dtype, tuple):
-                if dtype[0] is None:
+            if isinstance(dtype, DataType):
+                if dtype.cls is None:
                     pass
                 else:
-                    res[(name, "[%s]" % (dtype[0].__name__,))] = self[name].summary()
+                    res[(name, "[%s]" % (dtype.cls.__name__,))] = self[name].summary()
             else:
                 res[(name, "[%s]" % (dtype,))] = self[name]
         return res
