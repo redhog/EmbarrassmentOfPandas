@@ -34,7 +34,7 @@ class DataType(object):
         if self.cls is None:
             return repr(self.dtypes)
         else:
-            return "%s(%s)" % (self.cls, repr(self.dtypes))
+            return "%s(%s)" % (self.cls.__name__, ", ".join("%s=%s" % (name, repr(value)) for name, value in self.dtypes.items()))
         
 def copy_dtypes(dtypes):
     if isinstance(dtypes, dict):
@@ -58,6 +58,10 @@ class DataInstance(object):
         self._enforce_dtypes()
         self._save_dtypes()
 
+    @property
+    def type(self):
+        return DataType(type(self), self.dtypes)
+        
     def _save_dtypes(self):
         for key, dtype in self.df.dtypes.items():
             self._save_dtype(key, dtype)
