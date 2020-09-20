@@ -23,6 +23,10 @@ class DataType(object):
         self.cls = cls
         self.dtypes = dtypes
 
+    def instantiate(self, df):
+        cls = self.cls or DataInstance
+        return cls(df, self.dtypes)
+            
     def copy(self):
         return type(self)(self.cls, copy_dtypes(self.dtypes))
         
@@ -120,7 +124,7 @@ class DataInstance(object):
         if isinstance(t, dict):
             return type(self)(res, t)
         elif isinstance(t, DataType):
-            return t.cls(res, t.dtypes)
+            return t.instantiate(res)
         else:
             return res
 
