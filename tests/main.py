@@ -4,6 +4,23 @@ import eop
 import pandas as pd
 import numpy as np
 
+        
+class A(eop.DataInstance): pass
+
+class B(eop.DataInstance): pass
+
+class Point3D(eop.DataInstance):
+    dtypes = {"x": np.dtype("float64"),
+              "y": np.dtype("float64"),
+              "z": np.dtype("float64")}
+
+    def summary(self):
+        return eop.DataInstance(pd.DataFrame({"summary": (["/".join(str(item) for item in row) for idx, row in self.df.iterrows()])}))
+            
+class X(eop.DataInstance):
+    dtypes = {"doi": np.dtype("int64")}
+
+
 class TestDataInstance(unittest.TestCase):
     test_data_a = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "z": [7, 8, 9]})
     test_data_b =  pd.DataFrame({"doi": [77, 88, 99]})
@@ -28,39 +45,39 @@ class TestDataInstance(unittest.TestCase):
         self.assertEqual(main[("sub", "x")].loc[0], 1)
 
     def test_sub_type(self):
-        sub = eop.B(self.test_data_a.copy())
-        main = eop.A(self.test_data_b.copy())
+        sub = B(self.test_data_a.copy())
+        main = A(self.test_data_b.copy())
         main["sub"] = sub
-        self.assertIsInstance(main, eop.A)
-        self.assertIsInstance(main["sub"], eop.B)
+        self.assertIsInstance(main, A)
+        self.assertIsInstance(main["sub"], B)
         
     def test_method_type(self):
-        sub = eop.B(self.test_data_a.copy())
-        main = eop.A(self.test_data_b.copy())
+        sub = B(self.test_data_a.copy())
+        main = A(self.test_data_b.copy())
         main["sub"] = sub
-        self.assertIsInstance(main.head(), eop.A)
-        self.assertIsInstance(main.head()["sub"], eop.B)
+        self.assertIsInstance(main.head(), A)
+        self.assertIsInstance(main.head()["sub"], B)
         
     def test_dtypes(self):
-        sub = eop.Point3D(self.test_data_a.copy())
-        main = eop.X(self.test_data_b.copy())
+        sub = Point3D(self.test_data_a.copy())
+        main = X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.df.dtypes[("doi", "")], np.dtype("int64"))
         self.assertEqual(main["sub"].df.dtypes[("x",)], np.dtype("float64"))
 
     def test_summary(self):
-        sub = eop.Point3D(self.test_data_a.copy())
-        main = eop.X(self.test_data_b.copy())
+        sub = Point3D(self.test_data_a.copy())
+        main = X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.summary()[("sub", "[Point3D]", "summary")].loc[0], "1.0/4.0/7.0")
 
     def test_sub_sub(self):
         main = eop.DataInstance(self.test_data_b.copy())
-        sub = eop.A(self.test_data_a.copy())
-        sub2 = eop.B(self.test_data_c.copy())
+        sub = A(self.test_data_a.copy())
+        sub2 = B(self.test_data_c.copy())
         main["sub"] = sub
         main[("sub", "xxx")] = sub2
-        self.assertIsInstance(main[("sub", "xxx")], eop.B)
+        self.assertIsInstance(main[("sub", "xxx")], B)
 
 if __name__ == '__main__':
     unittest.main()

@@ -215,19 +215,3 @@ class DataInstance(object):
             else:
                 res[(name, "[%s]" % (dtype,))] = self[name]
         return res
-        
-                
-class A(DataInstance): pass
-
-class B(DataInstance): pass
-
-class Point3D(DataInstance):
-    dtypes = {"x": np.dtype("float64"),
-              "y": np.dtype("float64"),
-              "z": np.dtype("float64")}
-
-    def summary(self):
-        return DataInstance(pd.DataFrame({"summary": (["/".join(str(item) for item in row) for idx, row in self.df.iterrows()])}))
-            
-class X(DataInstance):
-    dtypes = {"doi": np.dtype("int64")}
