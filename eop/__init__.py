@@ -49,7 +49,7 @@ class DataInstance(object):
             key = key[:-1]
         dtypes = self.dtypes
         for item in key[:-1]:
-            if item not in dtypes:
+            if item not in dtypes or not isinstance(dtypes[item], tuple):
                 dtypes[item] = (None, {})
             dtypes = dtypes[item][1]
         dtypes[key[-1]] = dtype
@@ -110,26 +110,40 @@ class DataInstance(object):
         else:
             return res
 
+    def _adapt_key(self, key):
+        other_keylen = len(key)
+        self_keylen = len(self.df.columns[0])
+        if other_keylen > self_keylen:
+            pad = ("",) * (other_keylen - self_keylen)
+            self.df.columns = pd.MultiIndex.from_tuples(col + pad for col in self.df.columns)
+        elif self_keylen > other_keylen:
+            pad = ("",) * (self_keylen - other_keylen)
+            key = key + pad
+        return key
+
+    def _adapt_keys(self, keys):
+        return [self._adapt_key(key) for key in keys]
+    
     def __setitem__(self, key, value):
         key = self._clean_key(key)
         if isinstance(value, DataInstance):
-            other_columns = [key + col for col in value.df.columns]
-            other_keylen = len(other_columns[0])
-            self_keylen = len(self.df.columns[0])
-            if other_keylen > self_keylen:
-                pad = (None,) * (other_keylen - self_keylen)
-                self.df.columns = pd.MultiIndex.from_tuples(key + pad for key in self.df.columns)
-            elif self_keylen > other_keylen:
-                pad = (None,) * (self_keylen - other_keylen)
-                other_columns = [key + pad for key in other_columns]
-            self.df[other_columns] = value.df
+            assert not isinstance(key, list)
             dtypes = self.dtypes
             for item in key[:-1]:
                 if item not in dtypes:
                     dtypes[item] = (DataInstance, {})
                 dtypes = dtypes[item][1]
             dtypes[key[-1]] = (type(value), value.dtypes)
+            value = value.df
+        if isinstance(value, pd.DataFrame) and not isinstance(key, list):
+            other_columns = [key + col for col in value.columns]
+            other_columns = self._adapt_keys(other_columns)
+            self.df[other_columns] = value
         else:
+            if isinstance(key, list):
+                key = self._adapt_keys(key)
+            else:
+                key = self._adapt_key(key)
             self.df[key] = value
             if not isinstance(key, list): key = [key]
             for subkey in key:
@@ -174,9 +188,14 @@ class DataInstance(object):
     def summary(self):
         res = DataInstance(self.df.copy(), copy_dtypes(self.dtypes))
         for name, dtype in self.dtypes.items():
+            del res[name]
             if isinstance(dtype, tuple):
-                del res[name]
-                res[name] = self[name].summary()
+                if dtype[0] is None:
+                    pass
+                else:
+                    res[(name, "[%s]" % (dtype[0].__name__,))] = self[name].summary()
+            else:
+                res[(name, "[%s]" % (dtype,))] = self[name]
         return res
         
                 

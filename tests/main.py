@@ -45,14 +45,14 @@ class TestDataInstance(unittest.TestCase):
         sub = eop.Point3D(self.test_data_a.copy())
         main = eop.X(self.test_data_b.copy())
         main["sub"] = sub
-        self.assertEqual(main.df.dtypes[("doi", np.NaN)], np.dtype("int64"))
+        self.assertEqual(main.df.dtypes[("doi", "")], np.dtype("int64"))
         self.assertEqual(main["sub"].df.dtypes[("x",)], np.dtype("float64"))
 
     def test_summary(self):
         sub = eop.Point3D(self.test_data_a.copy())
         main = eop.X(self.test_data_b.copy())
         main["sub"] = sub
-        self.assertEqual(main.summary()[("sub", "summary")].loc[0], "1.0/4.0/7.0")
+        self.assertEqual(main.summary()[("sub", "[Point3D]", "summary")].loc[0], "1.0/4.0/7.0")
 
     def test_sub_sub(self):
         main = eop.DataInstance(self.test_data_b.copy())
