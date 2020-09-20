@@ -86,5 +86,12 @@ class TestDataInstance(unittest.TestCase):
         main[("sub", "xxx")] = sub2
         self.assertIsInstance(main[("sub", "xxx")], B)
 
+    def test_attributes(self):
+        sub = eop.DataInstance(self.test_data_a.copy())
+        main = eop.DataInstance(self.test_data_b.copy())
+        sub.gazonk = 47
+        main["sub"] = sub
+        self.assertEqual(main["sub"].gazonk, 47)
+        
 if __name__ == '__main__':
     unittest.main()

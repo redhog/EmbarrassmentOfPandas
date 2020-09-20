@@ -11,24 +11,25 @@ class DataInstanceLoc(object):
         res = self.di.df.loc[key]
         if isinstance(res, pd.Series):
             res = pd.DataFrame(res).T
-        return type(self.di)(res, self.di.dtypes)
+        return self.di.type.instantiate(res)
 
     def __setitem__(self, key, value):
         if isinstance(value, DataInstance):
             value = value.df
-        self.di.df[key] = value
+        self.di.df.loc[key] = value
 
 class DataType(object):
-    def __init__(self, cls, dtypes):
+    def __init__(self, cls = None, dtypes = None, attributes = None):
         self.cls = cls
-        self.dtypes = dtypes
+        self.dtypes = dtypes or {}
+        self.attributes = attributes or {}
 
     def instantiate(self, df):
         cls = self.cls or DataInstance
-        return cls(df, self.dtypes)
+        return cls(df, self.dtypes, **self.attributes)
             
     def copy(self):
-        return type(self)(self.cls, copy_dtypes(self.dtypes))
+        return type(self)(self.cls, copy_dtypes(self.dtypes), dict(self.attributes))
         
     def __repr__(self):
         if self.cls is None:
@@ -46,8 +47,8 @@ def copy_dtypes(dtypes):
 
 class DataInstance(object):
     dtypes = {}
-    
-    def __init__(self, df = None, dtypes = None):
+
+    def __init__(self, df = None, dtypes = None, **attributes):
         if df is None:
             df = pd.DataFrame({})
             df.index = pd.MultiIndex([[]], [[]])
@@ -55,12 +56,13 @@ class DataInstance(object):
             df.columns = pd.MultiIndex.from_tuples((name,) for name in df.columns)
         self.df = df
         self.dtypes = dtypes or copy_dtypes(type(self).dtypes)
+        self.attributes = attributes
         self._enforce_dtypes()
         self._save_dtypes()
 
     @property
     def type(self):
-        return DataType(type(self), self.dtypes)
+        return DataType(type(self), self.dtypes, self.attributes)
         
     def _save_dtypes(self):
         for key, dtype in self.df.dtypes.items():
@@ -72,7 +74,7 @@ class DataInstance(object):
         dtypes = self.dtypes
         for item in key[:-1]:
             if item not in dtypes or not isinstance(dtypes[item], DataType):
-                dtypes[item] = DataType(None, {})
+                dtypes[item] = DataType()
             dtypes = dtypes[item].dtypes
         dtypes[key[-1]] = dtype
 
@@ -158,7 +160,7 @@ class DataInstance(object):
                 if item not in dtypes:
                     dtypes[item] = DataType(DataInstance, {})
                 dtypes = dtypes[item].dtypes
-            dtypes[key[-1]] = DataType(type(value), value.dtypes)
+            dtypes[key[-1]] = value.type.copy()
             value = value.df
         if isinstance(value, pd.DataFrame) and not isinstance(key, list):
             other_columns = [key + col for col in value.columns]
@@ -194,6 +196,8 @@ class DataInstance(object):
         return value
     
     def __getattr__(self, name):
+        if name in self.attributes:
+            return self.attributes[name]
         attr = getattr(self.df, name)
         if isinstance(attr, types.MethodType):
             def wrapper(*arg, **kw):
@@ -202,10 +206,19 @@ class DataInstance(object):
         else:
             return self.wrap(attr)
 
+    def __setattr__(self, name, value):
+        if name in ("df", "dtypes", "attributes"):
+            object.__setattr__(self, name, value)
+        else:
+            self.attributes[name] = value
+        
+    def __delattr__(self, name):
+        del self.attributes[name]
+
     @property
     def loc(self):
         return DataInstanceLoc(self)
-    
+
     def __repr__(self):
         t = type(self)
         return "%s.%s:\n%s" % (t.__module__, t.__name__, repr(self.df))
