@@ -10,7 +10,7 @@ class A(eop.DataInstance): pass
 class B(eop.DataInstance): pass
 
 class Point3D(eop.DataInstance):
-    dtypes = {"x": np.dtype("float64"),
+    DTypes = {"x": np.dtype("float64"),
               "y": np.dtype("float64"),
               "z": np.dtype("float64")}
 
@@ -18,7 +18,7 @@ class Point3D(eop.DataInstance):
         return eop.DataInstance(pd.DataFrame({"summary": (["/".join(str(item) for item in row) for idx, row in self.df.iterrows()])}))
             
 class X(eop.DataInstance):
-    dtypes = {"doi": np.dtype("int64")}
+    DTypes = {"doi": np.dtype("int64")}
 
 
 class TestDataInstance(unittest.TestCase):
