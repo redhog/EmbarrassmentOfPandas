@@ -2,275 +2,155 @@ import numpy as np
 import pandas as pd
 import types
 
+class Filter(object):
+    def __init__(self, row = None, col = None):
+        self.row = row if row is not None else []
+        self.col = col if col is not None else []
 
-class DataInstanceLoc(object):
-    def __init__(self, di):
-        self.di = di
+    def append(self, other):
+        return Filter(self.row + other.row, self.col + other.col)
 
-    def __getitem__(self, key):
-        res = self.di.df.loc[key]
-        if isinstance(res, pd.Series):
-            res = pd.DataFrame(res).T
-        return self.di.type.instantiate(res)
+    def reset(self, row=False, col=False):
+        return Filter(self.row if not row else Nonbe, self.col if not col else None)
 
-    def __setitem__(self, key, value):
-        if isinstance(value, DataInstance):
-            value = value.df
-        self.di.df.loc[key] = value
+    def apply(self, df, row=True, col=True):
+        if col:
+            for f in self.col:
+                if isinstance(f, slice) and f.stop is False:
+                    df = df[[]]
+                else:
+                    df = df[f]
+        if row:
+            for f in self.row:
+                if isinstance(f, slice) and f.stop is False:
+                    df = df.iloc[0:0]
+                else:
+                    df = df.loc[f]
+        return df
 
-class DataType(object):
-    def __init__(self, cls = None, dtypes = None, attributes = None):
-        self.cls = cls
-        self.dtypes = dtypes or {}
-        self.attributes = attributes or {}
-
-    def instantiate(self, df):
-        cls = self.cls or DataInstance
-        return cls(df, self.dtypes, **self.attributes)
-            
-    def copy(self):
-        return type(self)(self.cls, copy_dtypes(self.dtypes), dict(self.attributes))
-        
-    def __repr__(self):
-        if self.cls is None:
-            return repr(self.dtypes)
-        else:
-            return "%s(%s)" % (self.cls.__name__, ", ".join("%s=%s" % (name, repr(value)) for name, value in self.dtypes.items()))
-        
-def copy_dtypes(dtypes):
-    if isinstance(dtypes, dict):
-        return {name:copy_dtypes(value) for name, value in dtypes.items()}
-    elif isinstance(dtypes, DataType):
-        return dtypes.copy()
-    else:
-        return dtypes
-
-def select_dtypes(key, dtypes):
-    if isinstance(key, list):
-        return {name:value
-                for name, value in ((item[0] if isinstance(item, tuple) else item,
-                                     select_dtypes(item, dtypes))
-                                    for item in key)
-                if value is not None}
-    elif key in dtypes:
-        return dtypes[key]
-    elif isinstance(key, tuple):
-        for item in key:
-            res = select_dtypes(item, dtypes)
-            if res is None:
-                return None
-            if isinstance(res, DataType):
-                dtypes = res.dtypes
-            else:
-                dtypes = None
-        return res
-    else:
+    @property
+    def row_position(self):
+        if not self.row: return None
+        last = self.row[-1]
+        if isinstance(last, slice) and last.stop is False:
+            return last.start
         return None
 
+    @property
+    def col_position(self):
+        if not self.col: return None
+        last = self.col[-1]
+        if isinstance(last, slice) and last.stop is False:
+            return last.start
+        return None
     
-class DataContainer(object):
-    def __init__(self, df, dtypes, attributes):
-        if df is None:
-            df = pd.DataFrame({})
-            df.index = pd.MultiIndex([[]], [[]])
-        elif not isinstance(df.columns, pd.MultiIndex):
-            df.columns = pd.MultiIndex.from_tuples((name,) for name in df.columns)
-        self.df = df
-        self.dtypes = dtypes
-        self.attributes = attributes or {}
-        
-    def getsubset(self, rowfilter=None, colfiler=None):
-        return FilterContainer(self, rowfiler, colfilter)
-    
-class FilterContainer(object):
-    def __init__(self, data, rowfilter, colfilter):
-        self.data = data
-        self.rowfilter = rowfilter
-        self.colfiler = colfilter
+class Container(object):
+    def __init__(self, base = None, extension = None):
+        assert (base is None) == (extension is None), "Both base and extension must be specified, or neither"
+        self.base = base if base is not None else pd.DataFrame()
+        self.extension = extension if extension is not None else pd.DataFrame([{}])
 
-    @property
-    def df(self):
-        if self.rowfiler is not None and self.colfilter is not None:
-            return self.data.df.loc[self.rowfilter, self.colfiler]
-        elif self.rowfiler is not None:
-            return self.data.df.loc[self.rowfilter]
-        else:
-            return self.data.df[self.colfilter]
-        
-    @property
-    def dtypes(self):
-        return select_dtypes(self.colfilter, self.data.dtypes)
-        
-    @property
-    def attributes(self):
-        return self.data.attributes
-                               
-                               
-class DataInstance(object):
-    DTypes = {}
+    def is_extension_col(self, col):
+        return self.extension.loc[0, col] is not np.bool_(False)
 
-    def __init__(self, df = None, dtypes = None, data = None, **attributes):
-        if data is None:
-            self.data = DataContainer(
-                df,
-                dtypes or copy_dtypes(type(self).DTypes),
-                attributes)
-            self._enforce_dtypes()
-            self._save_dtypes()
-        else:
-            self.data = data
-
-    @property
-    def type(self):
-        return DataType(type(self), self.data.dtypes, self.data.attributes)
         
-    def _save_dtypes(self):
-        for key, dtype in self.data.df.dtypes.items():
-            self._save_dtype(key, dtype)
-            
-    def _save_dtype(self, key, dtype):
-        while key and key[-1] in (None, np.NaN):
-            key = key[:-1]
-        dtypes = self.data.dtypes
-        for item in key[:-1]:
-            if item not in dtypes or not isinstance(dtypes[item], DataType):
-                dtypes[item] = DataType()
-            dtypes = dtypes[item].dtypes
-        dtypes[key[-1]] = dtype
+class Instance(object):
+    def __init__(self, data = None, filter = None):
+        if isinstance(data, pd.DataFrame):
+            extension = data.iloc[:1].reset_index(drop=True).astype("bool")
+            extension[extension.columns] = np.bool_(False)
+            data = Container(data, extension)
+        self.data = data if data is not None else Container()
+        self.filter = filter if filter is not None else Filter()
 
-    def _enforce_dtypes(self, prefix = (), dtypes = None):
-        if dtypes is None: dtypes = self.data.dtypes
-        for key, value in dtypes.items():
-            if isinstance(value, DataType):
-                self._enforce_dtypes(prefix + (key,), value.dtypes)
+    def select(self, filter):
+        filter = self.filter.append(filter)
+        exts = filter.apply(self.data.extension, row=False)
+        if isinstance(exts, pd.Series):
+            ext = exts.iloc[0]
+            if ext is np.bool_(False):
+                # FIXME: Make a Column class to wrap here...
+                return filter.apply(self.data.base)
             else:
-                col = prefix + (key,)
-                if col not in self.data.df:
-                    self.data.df[col] = np.nan
-                self.data.df = self.data.df.astype({col: value})
-
-    def _clean_key(self, key):
-        if isinstance(key, list):
-            return [self._clean_key(item) for item in key]
-        elif not isinstance(key, tuple):
-            return (key,)
-        return key
-        
-    def __getitem__(self, key):
-        key = self._clean_key(key)
-        res = self.data.df[key]
-        t = select_dtypes(key, self.data.dtypes)
-        if isinstance(t, (dict, DataType)) and isinstance(res, pd.Series):
-            res = pd.DataFrame({key: res}).T
-        if isinstance(t, dict):
-            return type(self)(res, t)
-        elif isinstance(t, DataType):
-            return t.instantiate(res)
+                return ext.filter(filter.reset(col=True))
         else:
-            return res
-
-    def _adapt_key(self, key):
-        other_keylen = len(key)
-        self_keylen = len(self.data.df.columns.levels)
-        if other_keylen > self_keylen:
-            if len(self.data.df.columns):
-                pad = ("",) * (other_keylen - self_keylen)
-                self.data.df.columns = pd.MultiIndex.from_tuples(col + pad for col in self.data.df.columns)
-            else:
-                self.data.df.columns = pd.MultiIndex([[""] for l in range(other_keylen)], [[] for l in range(other_keylen)])
-        elif self_keylen > other_keylen:
-            pad = ("",) * (self_keylen - other_keylen)
-            key = key + pad
-        return key
-
-    def _adapt_keys(self, keys):
-        return [self._adapt_key(key) for key in keys]
-    
-    def __setitem__(self, key, value):
-        key = self._clean_key(key)
-        if isinstance(value, DataInstance):
-            assert not isinstance(key, list)
-            dtypes = self.data.dtypes
-            for item in key[:-1]:
-                if item not in dtypes:
-                    dtypes[item] = DataType(DataInstance, {})
-                dtypes = dtypes[item].dtypes
-            dtypes[key[-1]] = value.type.copy()
-            value = value.data.df
-        if isinstance(value, pd.DataFrame) and not isinstance(key, list):
-            other_columns = [key + col for col in value.columns]
-            other_columns = self._adapt_keys(other_columns)
-            self.data.df[other_columns] = value
-        else:
-            if isinstance(key, list):
-                key = self._adapt_keys(key)
-            else:
-                key = self._adapt_key(key)
-            self.data.df[key] = value
-            if not isinstance(key, list): key = [key]
-            for subkey in key:
-                self._save_dtype(subkey, self.data.df.dtypes[subkey])
-
-    def __delitem__(self, name):
-        key = self._clean_key(name)
-        del self.data.df[name]
-        if not isinstance(name, list): name = [name]
-        for item in name:
-            dtypes = self.data.dtypes
-            for part in item[:-1]:
-                if part not in dtypes: break
-                if not isinstance(dtypes[part], DataType): break
-                dtypes = dtypes[part].dtypes
-            else:
-                del dtypes[item[-1]]
-                
-            
-    def wrap(self, value):
-        if isinstance(value, pd.DataFrame):
-            return type(self)(value, copy_dtypes(self.data.dtypes))
-        return value
-    
-    def __getattr__(self, name):
-        if name in ("df", "dtypes", "attributes"):
-            return getattr(self.data, name)
-        if name in self.data.attributes:
-            return self.data.attributes[name]
-        attr = getattr(self.data.df, name)
-        if isinstance(attr, types.MethodType):
-            def wrapper(*arg, **kw):
-                return self.wrap(attr(*arg, **kw))
-            return wrapper
-        else:
-            return self.wrap(attr)
-
-    def __setattr__(self, name, value):
-        if name in ("data"):
-            object.__setattr__(self, name, value)
-        elif name in ("df", "dtypes", "attributes"):
-            setattr(self.data, name, value)
-        else:
-            self.data.attributes[name] = value
-        
-    def __delattr__(self, name):
-        del self.data.attributes[name]
+            return type(self)(self.data, filter)
 
     @property
-    def loc(self):
-        return DataInstanceLoc(self)
+    def filtered(self):
+        filtered = self.filter.apply(self.data.base)
+        return filtered.index, filtered.columns
 
-    def __repr__(self):
-        t = type(self)
-        return "%s.%s:\n%s" % (t.__module__, t.__name__, repr(self.data.df))
+    @property
+    def base(self):
+        return self.filter.apply(self.data.base)
 
-    def summary(self):
-        res = DataInstance(self.data.df.copy(), copy_dtypes(self.data.dtypes))
-        for name, dtype in self.data.dtypes.items():
-            del res[name]
-            if isinstance(dtype, DataType):
-                if dtype.cls is None:
-                    pass
+    @property
+    def extension(self):
+        return self.filter.apply(self.data.extension, row=False)
+        
+    def assign(self, other):
+        rows, cols = self.filtered
+        other_rows, other_cols = other.filtered
+        row_pos = self.filter.row_position
+        col_pos = self.filter.col_position
+        
+        if col_pos is not None or not self.filter.col:
+            for new_col in set(other_cols) - set(self.data.base.columns):
+                if other.data.extension.loc[new_col, 0] is np.bool_(False):
+                    self.data.base[new_col] = np.NaN
+                    self.data.extension[new_col] = np.bool_(False)
                 else:
-                    res[(name, "[%s]" % (dtype.cls.__name__,))] = self[name].summary()
-            else:
-                res[(name, "[%s]" % (dtype,))] = self[name]
-        return res
+                    dtype = type(other.data.extension[new_col].loc[0])
+                    self.data.base[new_col] = np.bool_(False)
+                    self.data.extension[new_col] = dtype(Container(pd.DataFrame([{} for x in range(len(self.data.base))]),
+                                                                   pd.DataFrame([{} for x in range(len(self.data.base))])))
+
+        other_base = other.data.base.loc[other_rows, other_cols]
+        other_extension = other.data.extension[other_cols]
+
+        if len(cols) and self.filter.col:
+            assert len(cols) == len(other_cols), "Both instances must have the same number of columns"
+            renames = dict(zip(other_cols, cols))
+            other_base = other_base.rename(columns=renames)
+            other_extension = other_extension.rename(columns=renames)
+            
+        def insert(df1, df2, pos):
+            idx = self.data.base.index.get_loc(pos)
+            return df1.iloc[:idx].append(df2).append(df1.iloc[idx:])
+
+        if row_pos is not None:
+            self.data.base = insert(self.data.base, other_base, row_pos)
+        elif len(rows) == len(other_base):
+            self.data.base.loc[rows, cols] = other_base
+        else:
+            self.data.base = insert(self.data.base.drop(rows), other_base, next(iter(rows)))
+            
+        for col in other_extension.columns:
+            if col_pos is None and col not in self.data.extension.columns: continue
+            if not self.data.is_extension_col(col): continue
+            self.data.extension.loc[0, col].filter(self.filter.reset(col=True)).assign(other_extension.loc[0, col])
+
+    
+    # def format_header(self, row=0, colwidth=10):
+    #     columns = [col if isinstance(col, tuple) else (col,) for col in self.data.base.columns]
+        
+    #     header = "|".join(
+    #         self.data.extension.loc[0, col].format_header(row - len(col), colwidth)
+    #         if self.data.is_extension_col(col)
+    #         else (str(col) + " " * colwidth)[:colwidth]
+    #         for col in columns)
+        
+    #     for row in 
+
+    def __getitem__(self, item):
+        col = item
+        row = None
+        if isinstance(item, tuple):
+            row, col = (item + (None, None))[:2]
+        item = Filter([row] if row is not None else [], [col] if col is not None else [])
+        return self.select(item)
+            
+        
+class A(Instance): pass
+class B(Instance): pass
