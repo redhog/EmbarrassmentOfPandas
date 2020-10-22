@@ -118,7 +118,12 @@ class Instance(object):
 
     @property
     def extension(self):
-        return self.filter.apply(self.data.extension, row=False)
+        filtered = self.filter.apply(self.data.extension, row=False)
+        return pd.DataFrame(filtered.apply(
+            lambda x:
+            np.bool_(False)
+            if x.loc[0] is np.bool_(False)
+            else x.iloc[0].select(self.filter.reset(col=True)))).T
 
     def wrap(self, col):
         return Instance(
@@ -187,6 +192,7 @@ class Instance(object):
                 print("Assign extension column", col)
                 self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col])
 
+    
     
     # def format_header(self, row=0, colwidth=10):
     #     columns = [col if isinstance(col, tuple) else (col,) for col in self.data.base.columns]
