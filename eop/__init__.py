@@ -121,6 +121,7 @@ class Instance(object):
     def extension(self):
         res = self.filter.apply(self.data.extension, row=False)
         res = res[res.columns & self.extension_columns]
+        if len(res.columns) == 0: return res
         return pd.DataFrame(res.apply(
             lambda x:
             np.bool_(False)
@@ -195,8 +196,19 @@ class Instance(object):
                 self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col])
 
     def flatten(self, prefix = ()):
-        pass
-                
+        base = self.base
+        base.columns = [prefix + (col if isinstance(col, tuple) else (col,)) for col in base.columns]
+        extension = self.extension
+        extension = [extension.loc[0, col].flatten(prefix + (col if isinstance(col, tuple) else (col,)))
+                     for col in extension.columns]
+        for ext in extension:
+            for col in ext.columns:
+                base[col] = ext[col]
+        return base
+
+    def __repr__(self):
+        t = type(self)
+        return "%s.%s:\n%s" % (t.__module__, t.__name__, repr(self.flatten()))
     
     # def format_header(self, row=0, colwidth=10):
     #     columns = [col if isinstance(col, tuple) else (col,) for col in self.data.base.columns]
