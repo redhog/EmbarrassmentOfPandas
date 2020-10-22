@@ -114,12 +114,14 @@ class Instance(object):
     
     @property
     def base(self):
-        return self.filter.apply(self.data.base)
-
+        res = self.filter.apply(self.data.base)
+        return res[res.columns & self.base_columns]
+        
     @property
     def extension(self):
-        filtered = self.filter.apply(self.data.extension, row=False)
-        return pd.DataFrame(filtered.apply(
+        res = self.filter.apply(self.data.extension, row=False)
+        res = res[res.columns & self.extension_columns]
+        return pd.DataFrame(res.apply(
             lambda x:
             np.bool_(False)
             if x.loc[0] is np.bool_(False)
@@ -192,7 +194,9 @@ class Instance(object):
                 print("Assign extension column", col)
                 self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col])
 
-    
+    def flatten(self, prefix = ()):
+        pass
+                
     
     # def format_header(self, row=0, colwidth=10):
     #     columns = [col if isinstance(col, tuple) else (col,) for col in self.data.base.columns]
