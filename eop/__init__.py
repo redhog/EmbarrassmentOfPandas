@@ -61,32 +61,34 @@ class Filter(object):
         return None
 
     def __repr__(self):
-        return "%s, %s" % ("".join("[%s]" % (item,) for item in self.row), "".join("[%s]" % (item,) for item in self.col))
+        return "Filter(%s, %s)" % ("".join("[%s]" % (item,) for item in self.row), "".join("[%s]" % (item,) for item in self.col))
     
 class Container(object):
-    def __init__(self, base = None, extension = None):
-        assert (base is None) == (extension is None), "Both base and extension must be specified, or neither"
+    def __init__(self, base = None, extension = None, meta=None):
+        if base is not None and extension is None:
+            extension = base.iloc[:1].reset_index(drop=True).astype("bool")
+            extension[extension.columns] = np.bool_(False)
         self.base = base if base is not None else pd.DataFrame()
         self.extension = extension if extension is not None else pd.DataFrame([{}])
-
+        self.meta = meta if meta is not None else {}
+        
     def is_extension_col(self, col):
         return self.extension.loc[0, col] is not np.bool_(False)
 
         
 class Instance(object):
-    def __init__(self, data = None, filter = None):
-        if isinstance(data, pd.DataFrame):
-            extension = data.iloc[:1].reset_index(drop=True).astype("bool")
-            extension[extension.columns] = np.bool_(False)
-            data = Container(data, extension)
-        self.data = data if data is not None else Container()
+    def __init__(self, data = None, extension = None, meta=None, filter = None):
+        if isinstance(data, Container):
+            self.data = data
+        else:
+            self.data = Container(data, extension, meta)
         self.filter = filter if filter is not None else Filter()
 
     def select(self, filter):
-        return type(self)(self.data, self.filter.append(filter))
+        return type(self)(self.data, filter=self.filter.append(filter))
 
     def unselect(self, row=False, col=False):
-        return type(self)(self.data, self.filter.reset(row, col))
+        return type(self)(self.data, filter=self.filter.reset(row, col))
     
     def extract(self):
         if not self.filter.is_extractable:
@@ -154,10 +156,12 @@ class Instance(object):
                         self.data.base[new_col] = np.NaN
                         self.data.extension[new_col] = np.bool_(False)
                     else:
-                        dtype = type(other.data.extension.loc[0, new_col])
+                        sub = other.data.extension.loc[0, new_col]
+                        dtype = type(sub)
                         self.data.base[new_col] = np.bool_(False)
                         self.data.extension[new_col] = dtype(Container(pd.DataFrame([{} for x in range(len(self.data.base))]),
-                                                                       pd.DataFrame([{} for x in range(len(self.data.base))])))
+                                                                       pd.DataFrame([{} for x in range(len(self.data.base))]),
+                                                                       dict(sub.data.meta)))
 
             other_base = other.data.base.loc[other_rows, other_cols]
             other_extension = other.data.extension[other_cols]
@@ -209,17 +213,6 @@ class Instance(object):
     def __repr__(self):
         t = type(self)
         return "%s.%s:\n%s" % (t.__module__, t.__name__, repr(self.flatten()))
-    
-    # def format_header(self, row=0, colwidth=10):
-    #     columns = [col if isinstance(col, tuple) else (col,) for col in self.data.base.columns]
-        
-    #     header = "|".join(
-    #         self.data.extension.loc[0, col].format_header(row - len(col), colwidth)
-    #         if self.data.is_extension_col(col)
-    #         else (str(col) + " " * colwidth)[:colwidth]
-    #         for col in columns)
-        
-    #     for row in 
 
     def __getitem__(self, item):
         return self.select(Filter.from_item(item)).extract()
