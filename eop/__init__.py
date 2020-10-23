@@ -168,11 +168,15 @@ class Instance(object):
 
             if len(cols) and self.filter.col:
                 print("Copy columns by position", cols)
+                # FIXME: Handle replacing columns
                 assert len(cols) == len(other_cols), "Both instances must have the same number of columns"
                 renames = dict(zip(other_cols, cols))
                 other_base = other_base.rename(columns=renames)
                 other_extension = other_extension.rename(columns=renames)
-
+            else:
+                print("Update or columns", cols)
+                cols = other_cols
+                
             def insert(df1, df2, pos):
                 idx = self.data.base.index.get_loc(pos)
                 return df1.iloc[:idx].append(df2).append(df1.iloc[idx:])
@@ -181,7 +185,7 @@ class Instance(object):
                 print("Insert rows at", row_pos)
                 self.data.base = insert(self.data.base, other_base, row_pos)
             elif len(rows) == len(other_base):
-                print("Update rows", len(rows))
+                print("Update rows", len(rows), cols)
                 self.data.base.loc[rows, cols] = other_base
             elif self.filter.row:
                 print("Replace rows", len(rows), len(other_base))
