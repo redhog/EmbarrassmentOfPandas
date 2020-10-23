@@ -61,7 +61,15 @@ class Filter(object):
         return None
 
     def __repr__(self):
-        return "Filter(%s, %s)" % ("".join("[%s]" % (item,) for item in self.row), "".join("[%s]" % (item,) for item in self.col))
+        def stritem(item):
+            if isinstance(item, slice):
+                res = [part if part is not None else "" for part in [item.start, item.stop, item.step]]
+                if not res[-1]: res = res[:1]
+                return ":".join(res)
+            elif isinstance(item, list):
+                return ",".join(str(part) for part in item)
+            return str(item)
+        return "%s | %s" % ("/".join(stritem(item) for item in self.row), "/".join(stritem(item) for item in self.col))
     
 class Container(object):
     def __init__(self, base = None, extension = None, meta=None):
@@ -77,13 +85,38 @@ class Container(object):
 
         
 class Instance(object):
-    def __init__(self, data = None, extension = None, meta=None, filter = None):
+    DTypes = None
+    
+    def __new__(cls, data = None, extension = None, meta=None, filter = None):
+        self = object.__new__(cls)
         if isinstance(data, Container):
-            self.data = data
+            object.__setattr__(self, "data", data)
         else:
-            self.data = Container(data, extension, meta)
-        self.filter = filter if filter is not None else Filter()
+            object.__setattr__(self, "data", Container(data, extension, meta))
+        object.__setattr__(self, "filter", filter if filter is not None else Filter())
 
+        if cls.DTypes is None:
+            return self
+
+        self2 = cls.new_empty()
+        self2.assign(self)
+        self2.data.meta = meta
+        
+        return self2
+    
+    @classmethod
+    def new_empty(cls):
+        base = None
+        extension = None
+        if cls.DTypes is not None:
+            base_dtypes = cls.DTypes.map(lambda x: np.dtype('bool') if (type(x) is type and issubclass(x, Instance)) else x)
+            base = pd.DataFrame(columns=base_dtypes.index).astype(base_dtypes)
+            extension = pd.DataFrame(cls.DTypes.map(lambda x: x() if (type(x) is type and issubclass(x, Instance)) else np.bool_(False))).T
+        self = object.__new__(cls)
+        object.__setattr__(self, "data", Container(base, extension))
+        object.__setattr__(self, "filter", Filter())
+        return self
+        
     def select(self, filter):
         return type(self)(self.data, filter=self.filter.append(filter))
 
@@ -203,27 +236,70 @@ class Instance(object):
                 print("Assign extension column", col)
                 self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col])
 
-    def flatten(self, prefix = ()):
+    def flatten(self, prefix = (), include_types=False, include_first_filter=False):
+        if include_types:
+            t = type(self)
+            f = ""
+            if include_first_filter and (self.filter.col or self.filter.row):
+                f = ": %s" % (self.filter,)
+            prefix = prefix + ("<%s.%s%s>" % (t.__module__, t.__name__, f),)
+        
         base = self.base
         base.columns = [prefix + (col if isinstance(col, tuple) else (col,)) for col in base.columns]
         extension = self.extension
-        extension = [extension.loc[0, col].flatten(prefix + (col if isinstance(col, tuple) else (col,)))
+        extension = [extension.loc[0, col].flatten(prefix + (col if isinstance(col, tuple) else (col,)), include_types)
                      for col in extension.columns]
         for ext in extension:
             for col in ext.columns:
                 base[col] = ext[col]
+
+        levels = base.columns.map(len).max()
+        base.columns = pd.MultiIndex.from_tuples((col + (("",) * levels))[:levels] for col in base.columns)
+        
         return base
 
+    @property
+    def dtypes(self):
+        return self.base.dtypes.append(self.extension.loc[0].map(lambda x: type(x)))
+    
     def __repr__(self):
-        t = type(self)
-        return "%s.%s:\n%s" % (t.__module__, t.__name__, repr(self.flatten()))
+        return repr(self.flatten(include_types=True, include_first_filter=True))
 
     def __getitem__(self, item):
         return self.select(Filter.from_item(item)).extract()
 
     def __setitem__(self, item, value):
         self.select(Filter.from_item(item)).assign(value)
+
+    def __delitem__(self, item):
+        pass
+
+    def __getattr__(self, name):
+        try:
+            return self.data.meta[name]
+        except:
+            raise AttributeError(name)
         
+    def __setattr__(self, name, value):
+        self.data.meta[name] = value
         
+    def __delattr__(self, name):
+        try:
+            del self.data.meta[name]
+        except:
+            raise AttributeError(name)
+    
 class A(Instance): pass
 class B(Instance): pass
+class Point(Instance):
+    DTypes = pd.Series({
+        "x": np.dtype("float64"),
+        "y": np.dtype("float64"),
+        "z": np.dtype("float64")
+    })
+class Measurement(Instance):
+    DTypes = pd.Series({
+        "pos": Point,
+        "temp": np.dtype("float64"),
+        "time": np.dtype("float64")
+    })
