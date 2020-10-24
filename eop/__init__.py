@@ -297,6 +297,37 @@ class Instance(object):
     @property
     def dtypes(self):
         return self.base.dtypes.append(self.extension.loc[0].map(lambda x: type(x)))
+
+    @property
+    def columns(self):
+        rows, cols = self.filtered
+        return cols
+    
+    @columns.setter
+    def columns(self, columns):
+        if self.filter.col:
+            rows, cols = self.filtered
+            columns = self.data.base.columns.map(
+                lambda x: columns[cols.get_loc(x)] if x in cols else x)
+        self.data.base.columns = columns
+        self.data.extension.columns = columns
+
+    @property
+    def index(self):
+        rows, cols = self.filtered
+        return rows
+
+    @index.setter
+    def index(self, index):
+        if self.filter.col:
+            rows, cols = self.filtered
+            index = self.data.base.columns.map(
+                lambda x: index[rows.get_loc(x)] if x in rows else x)
+        self.data.base.index = index
+        def set_index(item):
+            if isinstance(item, Instance):
+                item.index = index
+        self.data.extension.loc[0].map(set_index)
     
     def __repr__(self):
         meta = "\n".join("%s: %s" % (key, str(value)[:30]) for key, value in self.data.meta.items())
@@ -321,7 +352,10 @@ class Instance(object):
             raise AttributeError(name)
         
     def __setattr__(self, name, value):
-        self.data.meta[name] = value
+        if name in ("data", "filter", "columns", "index"):
+            super(Instance, self).__setattr__(name, value)
+        else:
+            self.data.meta[name] = value
         
     def __delattr__(self, name):
         try:
