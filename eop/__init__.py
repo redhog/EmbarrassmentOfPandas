@@ -296,8 +296,16 @@ class Instance(object):
 
     @property
     def dtypes(self):
-        return self.base.dtypes.append(self.extension.loc[0].map(lambda x: type(x)))
+        dtypes = self.data.base.dtypes.copy()
+        extcols = self.data.extension.loc[0] != np.bool_(False)
+        dtypes[extcols] = self.data.extension.loc[0][extcols].map(lambda x: type(x))
+        dtypes = pd.DataFrame(dtypes).T
+        return self.filter.reset(row=True).apply(dtypes).loc[0]
 
+    @dtypes.setter
+    def dtypes(self, dtypes):
+        pass
+    
     @property
     def columns(self):
         rows, cols = self.filtered
