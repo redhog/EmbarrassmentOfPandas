@@ -86,6 +86,7 @@ class Container(object):
         
 class Instance(object):
     DTypes = None
+    Meta = None
     
     def __new__(cls, data = None, extension = None, meta=None, filter = None):
         if isinstance(data, Container):
@@ -97,7 +98,7 @@ class Instance(object):
 
         self2 = cls.new_empty()
         self2.assign(self)
-        self2.data.meta = meta
+        #self2.data.meta.update(meta)
         
         return self2
 
@@ -135,12 +136,15 @@ class Instance(object):
     def new_empty(cls):
         base = None
         extension = None
+        meta = None
         if cls.DTypes is not None:
             base_dtypes = cls.DTypes.map(lambda x: np.dtype('bool') if (type(x) is type and issubclass(x, Instance)) else x)
             base = pd.DataFrame(columns=base_dtypes.index).astype(base_dtypes)
             extension = pd.DataFrame(cls.DTypes.map(lambda x: x() if (type(x) is type and issubclass(x, Instance)) else np.bool_(False))).T
+        if cls.Meta is not None:
+            meta = dict(cls.Meta)
         self = object.__new__(cls)
-        object.__setattr__(self, "data", Container(base, extension))
+        object.__setattr__(self, "data", Container(base, extension, meta))
         object.__setattr__(self, "filter", Filter())
         return self
         
@@ -266,6 +270,8 @@ class Instance(object):
                 log("Assign extension column", col)
                 self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col], prefix=prefix+(col,))
 
+            self.data.meta.update(other.data.meta)
+                
     def flatten(self, prefix = (), include_types=False, include_first_filter=False):
         if include_types:
             t = type(self)
@@ -293,8 +299,12 @@ class Instance(object):
         return self.base.dtypes.append(self.extension.loc[0].map(lambda x: type(x)))
     
     def __repr__(self):
-        return repr(self.flatten(include_types=True, include_first_filter=True))
-
+        meta = "\n".join("%s: %s" % (key, str(value)[:30]) for key, value in self.data.meta.items())
+        if meta:
+            meta += "\n"
+        content = repr(self.flatten(include_types=True, include_first_filter=True))
+        return meta + content
+        
     def __getitem__(self, item):
         return self.select(Filter.from_item(item)).extract()
 
@@ -327,6 +337,9 @@ class Point(Instance):
         "y": np.dtype("float64"),
         "z": np.dtype("float64")
     })
+    Meta = {
+        "crs": None
+    }
 class Measurement(Instance):
     DTypes = pd.Series({
         "pos": Point,
