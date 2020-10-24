@@ -350,7 +350,37 @@ class Instance(object):
             return self.data.meta[name]
         except:
             raise AttributeError(name)
+
+
         
+    def wrap(self, value):
+        if isinstance(value, pd.DataFrame):
+            return type(self)(value, copy_dtypes(self.dtypes))
+        return value
+    
+    def __getattr__(self, name):
+        if name in self.data.meta:
+            return self.data.meta[name]
+        attr = getattr(self.base, name)
+        if isinstance(attr, types.MethodType):
+            def wrapper(*arg, **kw):
+                filter = self.filter.reset(col=True)
+                base = filter.apply(self.data.base)
+                base = getattr(base, name)(*arg, **kw)
+                def apply_item(item):
+                    if isinstance(item, Instance):
+                        return getattr(item.select(filter), name)(*arg, **kw)
+                    return item
+                if isinstance(base, pd.Series):
+                    base = pd.DataFrame(base).T
+                if isinstance(base, pd.DataFrame):
+                    extension = pd.DataFrame(self.data.extension.loc[0].map(apply_item)).T
+                    return type(self)(Container(base, extension, dict(self.data.meta))).select(self.filter.reset(row=True))
+                return base
+            return wrapper
+        else:
+            return attr
+
     def __setattr__(self, name, value):
         if name in ("data", "filter", "columns", "index"):
             super(Instance, self).__setattr__(name, value)
