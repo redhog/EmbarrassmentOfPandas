@@ -13,6 +13,11 @@ def valuerepr(obj):
     except:
         return "<%s@%s>" % (t, id(obj))
 
+def tagify(tag):
+    if isinstance(tag, dict):
+        return Tag(tag)
+    return tag
+    
 class DataSetInstance(object):
     def __init__(self, instance, *tags):
         self.id = id(instance)
@@ -26,7 +31,9 @@ class DataSetInstance(object):
         return res
         
 class Tag(object):
-    def __init__(self, **attrs):
+    def __init__(self, *arg, **attrs):
+        if arg:
+            attrs = arg[0]
         self.attrs = attrs
     def __repr__(self):
         return "[%s]" % ",".join("%s=%s" % (key, valuerepr(self.attrs[key])) for key in sorted(self.attrs.keys()))
@@ -51,6 +58,8 @@ class DataSet(object):
     def add(self, instance, *tags):
         itype = type(instance)
 
+        tags = [tagify(tag) for tag in tags]
+        
         instance = DataSetInstance(instance, *tags)
         self.datasets[instance.id] = instance
 
@@ -69,6 +78,7 @@ class DataSet(object):
             if id(t) in self.datasets:
                 del self.datasets[id(t)]
             else:
+                t = tagify(t)
                 for instance in self.by_tag[t]:
                     instance.tags.remove(t)
                 del self.by_tag[t]
@@ -80,7 +90,7 @@ class DataSet(object):
             if not isinstance(qp, tuple): qp = (qp,)
             qs = [set(self.by_type.get(t, ())
                       if isinstance(t, type)
-                      else self.by_tag.get(t, ()))
+                      else self.by_tag.get(tagify(t), ()))
                   for t in qp]
             if not qs:
                 return set()

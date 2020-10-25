@@ -134,16 +134,16 @@ class TestDataSet(unittest.TestCase):
 
     def test_complex_tag(self):
         ds = eop.DataSet()
-        ds[eop.Tag(src="nanana")] = "lala"
+        ds[{"src": "nanana"}] = "lala"
         self.assertEqual(len(ds["lala"]), 1)
         self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
 
     def test_more_complex_tag(self):
         ds = eop.DataSet()
         a = eop.A({"foo": [1]})
-        ds[eop.Tag(src=a)] = "lala"
+        ds[{"src": a}] = "lala"
         self.assertEqual(len(ds["lala"]), 1)
-        self.assertEqual(ds[eop.Tag(src=a)], {"lala"})      
+        self.assertEqual(ds[{"src": a}], {"lala"})      
 
 if __name__ == '__main__':
     unittest.main()
