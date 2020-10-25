@@ -88,5 +88,62 @@ class TestDataInstance(unittest.TestCase):
         main["sub"] = sub
         self.assertEqual(main["sub"].gazonk, 47)
         
+class TestDataSet(unittest.TestCase):
+    def test_contains_tag(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        self.assertNotIn("c", ds)
+        self.assertIn("a", ds)
+        self.assertIn("b", ds)
+
+    def test_contains_instance(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        self.assertIn("Foo", ds)
+
+    def test_get_tags(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        self.assertIn("a", ds["Foo"])
+        self.assertIn("b", ds["Foo"])
+        
+    def test_no_tag(self):
+        ds = eop.DataSet()
+        ds[:] = "Notags"
+        self.assertIn("Notags", ds)
+        self.assertEqual(ds["Notags"], set())
+
+    def test_intersection_query(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        ds["a", "c"] = "Bar"
+        ds["b", "c"] = "Fie"
+        ds["a", "d"] = "Hehe"
+        self.assertEqual(ds["b", "c"], {"Fie"})
+        self.assertIn(("b", "c"), ds)
+        self.assertNotIn(("b", "d"), ds)
+
+    def test_type_query(self):
+        ds = eop.DataSet()
+        ds["a"] = a1 = eop.A({"foo": [1]})
+        ds["a"] = a2 = eop.B({"foo": [2]})
+        ds["b"] = a3 = eop.B({"foo": [3]})
+        self.assertEqual(ds[eop.A, "a"], {a1})
+        self.assertEqual(ds[eop.B, "a"], {a2})
+        self.assertEqual(ds[eop.B, "b"], {a3})
+
+    def test_complex_tag(self):
+        ds = eop.DataSet()
+        ds[eop.Tag(src="nanana")] = "lala"
+        self.assertEqual(len(ds["lala"]), 1)
+        self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
+
+    def test_more_complex_tag(self):
+        ds = eop.DataSet()
+        a = eop.A({"foo": [1]})
+        ds[eop.Tag(src=a)] = "lala"
+        self.assertEqual(len(ds["lala"]), 1)
+        self.assertEqual(ds[eop.Tag(src=a)], {"lala"})      
+
 if __name__ == '__main__':
     unittest.main()
