@@ -354,19 +354,6 @@ class Instance(special_numeric.SpecialNumeric):
 
     def __delitem__(self, item):
         pass
-
-    def __getattr__(self, name):
-        try:
-            return self.data.meta[name]
-        except:
-            raise AttributeError(name)
-
-
-        
-    def wrap(self, value):
-        if isinstance(value, pd.DataFrame):
-            return type(self)(value, copy_dtypes(self.dtypes))
-        return value
     
     def __getattr__(self, name):
         if name in self.data.meta:
