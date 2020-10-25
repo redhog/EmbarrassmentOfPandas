@@ -12,9 +12,14 @@ class Tag(object):
     def __init__(self, **attrs):
         self.attrs = attrs
     def __repr__(self):
-        return ",".join("%s=%s" % item for item in self.attrs.items())
+        return "[%s]" % ",".join("%s=%s" % (key, self.attrs[key]) for key in sorted(self.attrs.keys()))
     def __hash__(self):
-        return hash(repr(self))
+        def hashorid(obj):
+            try:
+                return hash(obj)
+            except:
+                return id(obj)
+        return hash(",".join("%s=%s" % (key, hashorid(self.attrs[key])) for key in sorted(self.attrs.keys())))
     def __eq__(self, other):
         return repr(self) == repr(other)
     
