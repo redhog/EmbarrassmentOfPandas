@@ -2,6 +2,17 @@ import uuid
 import weakref
 import inspect
 
+def valuerepr(obj):
+    s = str(obj)
+    if "\n" not in s:
+        return s[:30]
+    t = type(obj)
+    t = "%s.%s" % (t.__module__, t.__name__)
+    try:
+        return "<%s#%s>" % (t, hash(obj))
+    except:
+        return "<%s@%s>" % (t, id(obj))
+
 class DataSetInstance(object):
     def __init__(self, instance, *tags):
         self.id = id(instance)
@@ -9,9 +20,7 @@ class DataSetInstance(object):
         self.tags = set(tags)
 
     def __repr__(self):
-        res = str(self.instance)
-        res = res.split("\n")[0]
-        res = res[:30]
+        res = valuerepr(self.instance)
         if self.tags:
             res += " / " + ",".join(str(tag) for tag in self.tags)
         return res
@@ -20,7 +29,7 @@ class Tag(object):
     def __init__(self, **attrs):
         self.attrs = attrs
     def __repr__(self):
-        return "[%s]" % ",".join("%s=%s" % (key, self.attrs[key]) for key in sorted(self.attrs.keys()))
+        return "[%s]" % ",".join("%s=%s" % (key, valuerepr(self.attrs[key])) for key in sorted(self.attrs.keys()))
     def __hash__(self):
         def hashorid(obj):
             try:
@@ -30,6 +39,8 @@ class Tag(object):
         return hash(",".join("%s=%s" % (key, hashorid(self.attrs[key])) for key in sorted(self.attrs.keys())))
     def __eq__(self, other):
         return repr(self) == repr(other)
+    def __getitem__(self, key):
+        return self.attrs[key]
     
 class DataSet(object):
     def __init__(self):
