@@ -6,10 +6,12 @@ from . import special_numeric
 from . import filter as filtermod
 from . import container as containermod
 from . import datainstance as datainstancemod
+from . import dataset as datasetmod
 
 Filter = filtermod.Filter
 DataInstance = datainstancemod.DataInstance
-
+Tag = datasetmod.Tag
+DataSet = datasetmod.DataSet
 
 class A(DataInstance): pass
 class B(DataInstance): pass
