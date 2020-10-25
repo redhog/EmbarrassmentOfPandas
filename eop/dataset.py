@@ -38,14 +38,14 @@ class Tag(object):
             attrs = arg[0]
         self.attrs = attrs
     def __repr__(self):
-        return "[%s]" % ",".join("%s=%s" % (key, valuerepr(self.attrs[key])) for key in sorted(self.attrs.keys()))
+        return "[%s]" % ",".join("%s:%s" % (key, valuerepr(self.attrs[key])) for key in sorted(self.attrs.keys()))
     def __hash__(self):
         def hashorid(obj):
             try:
                 return hash(obj)
             except:
                 return id(obj)
-        return hash(",".join("%s=%s" % (key, hashorid(self.attrs[key])) for key in sorted(self.attrs.keys())))
+        return hash(",".join("%s:%s" % (key, hashorid(self.attrs[key])) for key in sorted(self.attrs.keys())))
     def __eq__(self, other):
         return repr(self) == repr(other)
     def __getitem__(self, key):
