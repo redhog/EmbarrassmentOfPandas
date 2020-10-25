@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import types
 
+from . import special_numeric
+
 class Filter(object):
     def __init__(self, row = None, col = None):
         self.row = row if row is not None else []
@@ -84,7 +86,7 @@ class Container(object):
         return self.extension.loc[0, col] is not np.bool_(False)
 
         
-class Instance(object):
+class Instance(special_numeric.SpecialNumeric):
     DTypes = None
     Meta = None
     
@@ -400,7 +402,10 @@ class Instance(object):
             del self.data.meta[name]
         except:
             raise AttributeError(name)
+
     
+        
+        
 class A(Instance): pass
 class B(Instance): pass
 class Point(Instance):
