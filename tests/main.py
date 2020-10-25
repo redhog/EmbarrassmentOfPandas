@@ -38,12 +38,6 @@ class TestDataInstance(unittest.TestCase):
         main["sub"] = sub
         self.assertEqual(main.loc[[0, 2]]["sub"]["x"].iloc[1], 3)
 
-    def test_sub_col(self):
-        sub = eop.DataInstance(self.test_data_a.copy())
-        main = eop.DataInstance(self.test_data_b.copy())
-        main["sub"] = sub
-        self.assertEqual(main[("sub", "x")].loc[0], 1)
-
     def test_sub_type(self):
         sub = B(self.test_data_a.copy())
         main = A(self.test_data_b.copy())
@@ -62,16 +56,17 @@ class TestDataInstance(unittest.TestCase):
         sub = Point3D(self.test_data_a.copy())
         main = X(self.test_data_b.copy())
         main["sub"] = sub
-        self.assertEqual(main.df.dtypes[("doi", "")], np.dtype("int64"))
-        self.assertEqual(main["sub"].df.dtypes[("x",)], np.dtype("float64"))
+        self.assertEqual(main.dtypes["doi"], np.dtype("int64"))
+        self.assertEqual(main["sub"].dtypes["x"], np.dtype("float64"))
 
-
+    @unittest.skip("Not yet implemented")
     def test_summary(self):
         sub = Point3D(self.test_data_a.copy())
         main = X(self.test_data_b.copy())
         main["sub"] = sub
         self.assertEqual(main.summary()[("sub", "[Point3D]", "summary")].loc[0], "1.0/4.0/7.0")
 
+    @unittest.skip("Not yet implemented")
     def test_summary_single_col(self):
         main = eop.DataInstance(self.test_data_a.copy())
         sub = X(self.test_data_b.copy())
@@ -83,8 +78,8 @@ class TestDataInstance(unittest.TestCase):
         sub = A(self.test_data_a.copy())
         sub2 = B(self.test_data_c.copy())
         main["sub"] = sub
-        main[("sub", "xxx")] = sub2
-        self.assertIsInstance(main[("sub", "xxx")], B)
+        main["sub"]["xxx"] = sub2
+        self.assertIsInstance(main["sub"]["xxx"], B)
 
     def test_attributes(self):
         sub = eop.DataInstance(self.test_data_a.copy())

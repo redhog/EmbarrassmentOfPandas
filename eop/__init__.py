@@ -4,6 +4,8 @@ import types
 
 from . import special_numeric
 
+DEBUG = False
+
 class Filter(object):
     def __init__(self, row = None, col = None):
         self.row = row if row is not None else []
@@ -85,8 +87,19 @@ class Container(object):
     def is_extension_col(self, col):
         return self.extension.loc[0, col] is not np.bool_(False)
 
+class Loc(object):
+    def __init__(self, instance):
+        self.instance = instance
         
-class Instance(special_numeric.SpecialNumeric):
+    def __getitem__(self, item):
+        if not isinstance(item, tuple): item = (item,None)
+        return self.instance.select(Filter.from_item(item)).extract()
+
+    def __setitem__(self, item, value):
+        if not isinstance(item, tuple): item = (item,None)
+        self.instance.select(Filter.from_item(item)).assign(value)
+        
+class DataInstance(special_numeric.SpecialNumeric):
     DTypes = None
     Meta = None
     
@@ -111,10 +124,10 @@ class Instance(special_numeric.SpecialNumeric):
         if isinstance(data, dict):
             base = pd.DataFrame({key:value for key, value in data.items() if isinstance(value, list)})
             def instancify(key, value):
-                if isinstance(value, Instance):
+                if isinstance(value, DataInstance):
                     return value
                 return cls.DTypes[key](value)
-            extension = pd.DataFrame({key:[instancify(key, value)] for key, value in data.items() if isinstance(value, (Instance, dict))}, index=[0])
+            extension = pd.DataFrame({key:[instancify(key, value)] for key, value in data.items() if isinstance(value, (DataInstance, dict))}, index=[0])
             basecols = list(base.columns)
             extcols = list(extension.columns)
             for key in extcols:
@@ -140,9 +153,11 @@ class Instance(special_numeric.SpecialNumeric):
         extension = None
         meta = None
         if cls.DTypes is not None:
-            base_dtypes = cls.DTypes.map(lambda x: np.dtype('bool') if (type(x) is type and issubclass(x, Instance)) else x)
+            dtypes = cls.DTypes
+            if not isinstance(dtypes, pd.Series): dtypes = pd.Series(dtypes)
+            base_dtypes = dtypes.map(lambda x: np.dtype('bool') if (type(x) is type and issubclass(x, DataInstance)) else x)
             base = pd.DataFrame(columns=base_dtypes.index).astype(base_dtypes)
-            extension = pd.DataFrame(cls.DTypes.map(lambda x: x() if (type(x) is type and issubclass(x, Instance)) else np.bool_(False))).T
+            extension = pd.DataFrame(dtypes.map(lambda x: x() if (type(x) is type and issubclass(x, DataInstance)) else np.bool_(False))).T
         if cls.Meta is not None:
             meta = dict(cls.Meta)
         self = object.__new__(cls)
@@ -197,7 +212,7 @@ class Instance(special_numeric.SpecialNumeric):
             else x.iloc[0].select(self.filter.reset(col=True)))).T
 
     def wrap(self, col):
-        return Instance(
+        return DataInstance(
             Container(
                 pd.DataFrame({col:np.zeros(len(self.data.base)).astype("bool")}, index=self.data.base.index),
                 pd.DataFrame({col:[self.unselect(row=True)]}))
@@ -205,7 +220,8 @@ class Instance(special_numeric.SpecialNumeric):
     
     def assign(self, other, prefix=()):
         def log(*arg):
-            print(("  " * len(prefix)) + " ".join(str(item) for item in arg))
+            if DEBUG:
+                print(("  " * len(prefix)) + " ".join(str(item) for item in arg))
         log(".".join(str(item) for item in prefix) + ":")
         if self.filter.is_extractable:
             col = self.filter.col[-1]
@@ -335,7 +351,7 @@ class Instance(special_numeric.SpecialNumeric):
                 lambda x: index[rows.get_loc(x)] if x in rows else x)
         self.data.base.index = index
         def set_index(item):
-            if isinstance(item, Instance):
+            if isinstance(item, DataInstance):
                 item.index = index
         self.data.extension.loc[0].map(set_index)
     
@@ -345,7 +361,11 @@ class Instance(special_numeric.SpecialNumeric):
             meta += "\n"
         content = repr(self.flatten(include_types=True, include_first_filter=True))
         return meta + content
-        
+
+    @property
+    def loc(self):
+        return Loc(self)
+    
     def __getitem__(self, item):
         return self.select(Filter.from_item(item)).extract()
 
@@ -365,7 +385,7 @@ class Instance(special_numeric.SpecialNumeric):
                 base = filter.apply(self.data.base)
                 base = getattr(base, name)(*arg, **kw)
                 def apply_item(item):
-                    if isinstance(item, Instance):
+                    if isinstance(item, DataInstance):
                         return getattr(item.select(filter), name)(*arg, **kw)
                     return item
                 if isinstance(base, pd.Series):
@@ -380,7 +400,7 @@ class Instance(special_numeric.SpecialNumeric):
 
     def __setattr__(self, name, value):
         if name in ("data", "filter", "columns", "index"):
-            super(Instance, self).__setattr__(name, value)
+            super(DataInstance, self).__setattr__(name, value)
         else:
             self.data.meta[name] = value
         
@@ -393,9 +413,9 @@ class Instance(special_numeric.SpecialNumeric):
     
         
         
-class A(Instance): pass
-class B(Instance): pass
-class Point(Instance):
+class A(DataInstance): pass
+class B(DataInstance): pass
+class Point(DataInstance):
     DTypes = pd.Series({
         "x": np.dtype("float64"),
         "y": np.dtype("float64"),
@@ -404,7 +424,7 @@ class Point(Instance):
     Meta = {
         "crs": None
     }
-class Measurement(Instance):
+class Measurement(DataInstance):
     DTypes = pd.Series({
         "pos": Point,
         "temp": np.dtype("float64"),

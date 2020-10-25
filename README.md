@@ -10,13 +10,14 @@ three columns, x,y,z, and then use this datatype wherever you need to
 store points in other datasets.
 
 The data structure corresponding to a DataFrame in EOP is called an
-Instance. The main difference is that you can subclass an Instance and
-use that as a datatype for a column in another Instance:
+DataInstance. The main difference is that you can subclass an
+DataInstance and use that as a datatype for a column in another
+DataInstance:
 
     >>> import pandas as pd, numpy as np, eop
-    >>> class A(eop.Instance): pass
+    >>> class A(eop.DataInstance): pass
     ... 
-    >>> class B(eop.Instance): pass
+    >>> class B(eop.DataInstance): pass
     ... 
     >>> a = A({"foo": [1,2,3,4], "fie":[5,6,7,8], "naja":[9,10,11,12], "hehe":[13,14,15,16]})
     >>> b = B({"fie":[25,26,27,28], "muae":[29,210,211,212]})
@@ -45,10 +46,10 @@ use that as a datatype for a column in another Instance:
     2           27  211
     3           28  212
 
-The main advantage of using Instance subclasses as datatypes is that
-you can define additional methods on them. These methods would then
-use regular numpy/pandas methods to operate across all the rows of the
-Instance. For example, you could define methods like these
+The main advantage of using DataInstance subclasses as datatypes is
+that you can define additional methods on them. These methods would
+then use regular numpy/pandas methods to operate across all the rows
+of the DataInstance. For example, you could define methods like these
 
     >>> cloud["point"].rotate_around(coord)
     >>> ground["topo"].reproject(new_crs)
