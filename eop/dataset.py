@@ -16,6 +16,8 @@ def valuerepr(obj):
 def tagify(tag):
     if isinstance(tag, dict):
         return Tag(tag)
+    if isinstance(tag, slice):
+        return Tag({tag.start: tag.stop})
     return tag
     
 class DataSetInstance(object):

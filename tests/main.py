@@ -145,5 +145,11 @@ class TestDataSet(unittest.TestCase):
         self.assertEqual(len(ds["lala"]), 1)
         self.assertEqual(ds[{"src": a}], {"lala"})      
 
+    def test_complex_tag_slice_syntax(self):
+        ds = eop.DataSet()
+        ds["src": "nanana"] = "lala"
+        self.assertEqual(len(ds["lala"]), 1)
+        self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
+        
 if __name__ == '__main__':
     unittest.main()
