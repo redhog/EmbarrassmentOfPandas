@@ -8,6 +8,14 @@ class DataSetInstance(object):
         self.instance = instance
         self.tags = set(tags)
 
+    def __repr__(self):
+        res = str(self.instance)
+        res = res.split("\n")[0]
+        res = res[:30]
+        if self.tags:
+            res += " / " + ",".join(str(tag) for tag in self.tags)
+        return res
+        
 class Tag(object):
     def __init__(self, **attrs):
         self.attrs = attrs
@@ -86,3 +94,5 @@ class DataSet(object):
         if not isinstance(key, tuple): key = (key,)
         self.remove(key)
 
+    def __repr__(self):
+        return "\n".join(repr(instance) for instance in self.datasets.values())
