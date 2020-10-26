@@ -64,7 +64,16 @@ class Storage(object):
     def __init__(self):
         self.by_tag = {}
         self.datasets = {}
+        self.handlers = {}
 
+    def on(self, handler, *tags):
+        self.handlers[frozenset(tags)] = handler
+
+    def trigger(self, *tags, **kw):
+        for handler_tags, handler in self.handlers.items():
+            if len(handler_tags - set(tags)) == 0:
+                handler(*tags, **kw)
+        
     def add(self, instance, *tags):
         itype = type(instance)
 
@@ -78,6 +87,8 @@ class Storage(object):
                 self.by_tag[tag] = weakref.WeakSet()
             self.by_tag[tag].add(instance)
 
+        self.trigger(action="add", instance=instance.instance, *tags)
+            
     def query(self, qp):
         if not qp:
             return set(self.datasets.values())
@@ -93,30 +104,42 @@ class Storage(object):
     def remove(self, qp):
         for instance in self.query(qp):
             del self.dataset[instance.id]
-
+        self.trigger(action="remove", instance=instance.instance, *qp)
+            
     def untag(self, qp, *tags):
-        for instance in self.query(qp):
+        for old_instance in self.query(qp):
             instance = DataSetInstance(
-                instance.instance, *(instance.tags - set(tags)))
+                old_instance.instance, *(old_instance.tags - set(tags)))
             self.datasets[instance.id] = instance
             for tag in instance.tags:
                 self.by_tag[tag].add(instance)
+            self.trigger(action="untag", instance=instance.instance, tags=tags, *old_instance.tags)
 
     def tag(self, qp, *tags):
         for tag in tags:
             if tag not in self.by_tag:
                 self.by_tag[tag] = weakref.WeakSet()
-        for instance in self.query(qp):
+        for old_instance in self.query(qp):
             instance = DataSetInstance(
-                instance.instance, *(set.union(instance.tags, tags)))
+                old_instance.instance, *(set.union(old_instance.tags, tags)))
             self.datasets[instance.id] = instance
             for tag in instance.tags:
                 self.by_tag[tag].add(instance)
+            self.trigger(action="tag", instance=instance.instance, tags=tags, *instance.tags)
     
 class DataSet(object):
     def __init__(self, storage = None, filter=None):
         self.storage = storage if storage is not None else Storage()
         self.filter = filter if filter is not None else set()
+
+    def on(self, handler):
+        self.storage.on(handler, *self.filter)
+
+    def trigger(self, **kw):
+        self.storage.trigger(*self.filter, **kw)
+
+    def __call__(self, *arg):
+        return self.__getitem__(arg)
         
     def __getitem__(self, qp):
         if id(qp) in self.storage.datasets:

@@ -8,6 +8,9 @@ from . import container as containermod
 from . import datainstance as datainstancemod
 from . import dataset as datasetmod
 
+def on(ds):
+    return ds.on
+
 Filter = filtermod.Filter
 DataInstance = datainstancemod.DataInstance
 Tag = datasetmod.Tag
