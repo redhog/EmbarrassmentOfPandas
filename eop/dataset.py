@@ -51,7 +51,7 @@ class Tag(object):
     def __getitem__(self, key):
         return self.attrs[key]
     
-class DataSet(object):
+class Storage(object):
     def __init__(self):
         self.by_tag = {}
         self.datasets = {}
@@ -89,12 +89,16 @@ class DataSet(object):
             if not qs:
                 return set()
             return {instance.instance for instance in set.intersection(*qs)}
+
+class DataSet(object):
+    def __init__(self, storage = None):
+        self.storage = storage if storage is not None else Storage()
         
     def __getitem__(self, qp):
-        return self.query(qp)
+        return self.storage.query(qp)
 
     def __contains__(self, qp):
-        if id(qp) in self.datasets: return True
+        if id(qp) in self.storage.datasets: return True
         return len(self[qp]) > 0
     
     def __setitem__(self, key, value):
@@ -103,11 +107,11 @@ class DataSet(object):
         if key is None:
             key = ()
         if not isinstance(key, tuple): key = (key,)
-        self.add(value, *key)
+        self.storage.add(value, *key)
 
     def __delitem__(self, key):
         if not isinstance(key, tuple): key = (key,)
-        self.remove(key)
+        self.storage.remove(key)
 
     def __repr__(self):
-        return "\n".join(repr(instance) for instance in self.datasets.values())
+        return "\n".join(repr(instance) for instance in self.storage.datasets.values())
