@@ -29,18 +29,6 @@ def to_tagset(key):
         key = (key),
     return set(tagify(item) for item in key)
 
-class DataSetInstance(object):
-    def __init__(self, instance, *tags):
-        self.id = id(instance)
-        self.instance = instance
-        self.tags = set(tags)
-
-    def __repr__(self):
-        res = valuerepr(self.instance)
-        if self.tags:
-            res += " / " + ",".join(str(tag) for tag in self.tags)
-        return res
-        
 class Tag(object):
     def __init__(self, *arg, **attrs):
         if arg:
@@ -59,6 +47,18 @@ class Tag(object):
         return repr(self) == repr(other)
     def __getitem__(self, key):
         return self.attrs[key]
+
+class DataSetInstance(object):
+    def __init__(self, instance, *tags):
+        self.id = id(instance)
+        self.instance = instance
+        self.tags = set(tags)
+
+    def __repr__(self):
+        res = valuerepr(self.instance)
+        if self.tags:
+            res += " / " + ",".join(str(tag) for tag in self.tags)
+        return res
     
 class Storage(object):
     def __init__(self):
