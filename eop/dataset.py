@@ -54,6 +54,10 @@ class DataSetInstance(object):
         self.instance = instance
         self.tags = set(tags)
 
+    @property
+    def all_tags(self):
+        return set.union(self.tags, inspect.getmro(type(self.instance)))
+        
     def __repr__(self):
         res = valuerepr(self.instance)
         if self.tags:
@@ -75,19 +79,17 @@ class Storage(object):
                 handler(*tags, **kw)
         
     def add(self, instance, *tags):
-        itype = type(instance)
-
         tags = [tagify(tag) for tag in tags]
         
         instance = DataSetInstance(instance, *tags)
         self.datasets[instance.id] = instance
 
-        for tag in tuple(tags) + inspect.getmro(itype):
+        for tag in instance.all_tags:
             if tag not in self.by_tag:
                 self.by_tag[tag] = weakref.WeakSet()
             self.by_tag[tag].add(instance)
 
-        self.trigger(action="add", instance=instance.instance, *tags)
+        self.trigger(action="add", instance=instance.instance, *instance.all_tags)
             
     def query(self, qp):
         if not qp:
@@ -109,11 +111,11 @@ class Storage(object):
     def untag(self, qp, *tags):
         for old_instance in self.query(qp):
             instance = DataSetInstance(
-                old_instance.instance, *(old_instance.tags - set(tags)))
+                old_instance.instance, *(old_instance.all_tags - set(tags)))
             self.datasets[instance.id] = instance
-            for tag in instance.tags:
+            for tag in instance.all_tags:
                 self.by_tag[tag].add(instance)
-            self.trigger(action="untag", instance=instance.instance, tags=tags, *old_instance.tags)
+            self.trigger(action="untag", instance=instance.instance, tags=tags, *old_instance.all_tags)
 
     def tag(self, qp, *tags):
         for tag in tags:
@@ -123,9 +125,9 @@ class Storage(object):
             instance = DataSetInstance(
                 old_instance.instance, *(set.union(old_instance.tags, tags)))
             self.datasets[instance.id] = instance
-            for tag in instance.tags:
+            for tag in instance.all_tags:
                 self.by_tag[tag].add(instance)
-            self.trigger(action="tag", instance=instance.instance, tags=tags, *instance.tags)
+            self.trigger(action="tag", instance=instance.instance, tags=tags, *instance.all_tags)
     
 class DataSet(object):
     def __init__(self, storage = None, filter=None):
