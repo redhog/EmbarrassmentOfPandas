@@ -150,6 +150,22 @@ class TestDataSet(unittest.TestCase):
         ds["src": "nanana"] = "lala"
         self.assertEqual(len(ds["lala"]), 1)
         self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
+
+    def test_add_tag(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        ds["a", "c"] = "Bar"
+        ds["b", "c"] = "Fie"
+        ds["a", "b"] += "d"        
+        self.assertEqual(ds["d"], {"Foo"})
+
+    def test_remove_tag(self):
+        ds = eop.DataSet()
+        ds["a", "b"] = "Foo"
+        ds["a", "c"] = "Bar"
+        ds["b", "c"] = "Fie"
+        ds["a", "b"] -= "b"        
+        self.assertEqual(ds["b"], {"Fie"})
         
 if __name__ == '__main__':
     unittest.main()

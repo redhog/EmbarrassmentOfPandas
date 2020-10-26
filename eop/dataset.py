@@ -96,17 +96,21 @@ class Storage(object):
 
     def untag(self, qp, *tags):
         for instance in self.query(qp):
-            self.dataset[instance.id] = DataSetInstance(
+            instance = DataSetInstance(
                 instance.instance, *(instance.tags - set(tags)))
+            self.datasets[instance.id] = instance
+            for tag in instance.tags:
+                self.by_tag[tag].add(instance)
 
     def tag(self, qp, *tags):
         for tag in tags:
             if tag not in self.by_tag:
                 self.by_tag[tag] = weakref.WeakSet()
         for instance in self.query(qp):
-            self.dataset[instance.id] = DataSetInstance(
+            instance = DataSetInstance(
                 instance.instance, *(set.union(instance.tags, tags)))
-            for tag in tags:
+            self.datasets[instance.id] = instance
+            for tag in instance.tags:
                 self.by_tag[tag].add(instance)
     
 class DataSet(object):
@@ -122,6 +126,9 @@ class DataSet(object):
         return DataSet(self.storage, set.union(self.filter, to_tagset(qp)))
 
     def __setitem__(self, key, value):
+        # Make foo["tag1", "tag2"...] += "Ntag" work
+        if isinstance(value, DataSet) and id(value.storage) == id(self.storage):
+            return
         self.storage.add(value, *set.union(self.filter, to_tagset(key)))
 
     def __delitem__(self, key):
@@ -148,6 +155,8 @@ class DataSet(object):
     
     def __iadd__(self, tags):
         self.storage.tag(self.filter, *to_tagset(tags))
+        return self
 
     def __isub__(self, tags):
         self.storage.untag(self.filter, *to_tagset(tags))
+        return self
