@@ -53,7 +53,6 @@ class Tag(object):
     
 class DataSet(object):
     def __init__(self):
-        self.by_type = {}
         self.by_tag = {}
         self.datasets = {}
 
@@ -65,12 +64,7 @@ class DataSet(object):
         instance = DataSetInstance(instance, *tags)
         self.datasets[instance.id] = instance
 
-        for basetype in inspect.getmro(itype):
-            if basetype not in self.by_type:
-                self.by_type[basetype] = weakref.WeakSet()
-            self.by_type[basetype].add(instance)
-
-        for tag in tags:
+        for tag in tuple(tags) + inspect.getmro(itype):
             if tag not in self.by_tag:
                 self.by_tag[tag] = weakref.WeakSet()
             self.by_tag[tag].add(instance)
@@ -90,9 +84,7 @@ class DataSet(object):
             return self.datasets[id(qp)].tags
         else:
             if not isinstance(qp, tuple): qp = (qp,)
-            qs = [set(self.by_type.get(t, ())
-                      if isinstance(t, type)
-                      else self.by_tag.get(tagify(t), ()))
+            qs = [set(self.by_tag.get(tagify(t), ()))
                   for t in qp]
             if not qs:
                 return set()
