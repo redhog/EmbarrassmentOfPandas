@@ -143,7 +143,7 @@ class TestDataSet(unittest.TestCase):
         a = eop.A({"foo": [1]})
         ds[{"src": a}] = "lala"
         self.assertEqual(len(ds["lala"]), 1)
-        self.assertEqual(ds[{"src": a}], {"lala"})      
+        self.assertEqual(ds[{"src": a}], {"lala"})
 
     def test_complex_tag_slice_syntax(self):
         ds = eop.DataSet()

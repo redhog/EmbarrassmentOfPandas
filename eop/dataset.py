@@ -19,7 +19,16 @@ def tagify(tag):
     if isinstance(tag, slice):
         return Tag({tag.start: tag.stop})
     return tag
-    
+
+def to_tagset(key):
+    if isinstance(key, slice) and key.start is None and key.stop is None and key.step is None:
+        key = ()
+    if key is None:
+        key = ()
+    if not isinstance(key, (list, tuple, set)):
+        key = (key),
+    return set(tagify(item) for item in key)
+
 class DataSetInstance(object):
     def __init__(self, instance, *tags):
         self.id = id(instance)
@@ -69,49 +78,76 @@ class Storage(object):
                 self.by_tag[tag] = weakref.WeakSet()
             self.by_tag[tag].add(instance)
 
-    def remove(self, qp):
-        for t in qp:
-            if id(t) in self.datasets:
-                del self.datasets[id(t)]
-            else:
-                t = tagify(t)
-                for instance in self.by_tag[t]:
-                    instance.tags.remove(t)
-                del self.by_tag[t]
-
     def query(self, qp):
-        if id(qp) in self.datasets:
-            return self.datasets[id(qp)].tags
-        else:
-            if not isinstance(qp, tuple): qp = (qp,)
-            qs = [set(self.by_tag.get(tagify(t), ()))
-                  for t in qp]
-            if not qs:
-                return set()
-            return {instance.instance for instance in set.intersection(*qs)}
+        if not qp:
+            return set(self.datasets.values())
+        qs = [set(self.by_tag.get(tagify(t), ()))
+              for t in qp]
+        if not qs:
+            return set()
+        return {instance for instance in set.intersection(*qs)}
+            
+    def instance_query(self, qp):
+        return {instance.instance for instance in self.query(qp)}
 
+    def remove(self, qp):
+        for instance in self.query(qp):
+            del self.dataset[instance.id]
+
+    def untag(self, qp, *tags):
+        for instance in self.query(qp):
+            self.dataset[instance.id] = DataSetInstance(
+                instance.instance, *(instance.tags - set(tags)))
+
+    def tag(self, qp, *tags):
+        for tag in tags:
+            if tag not in self.by_tag:
+                self.by_tag[tag] = weakref.WeakSet()
+        for instance in self.query(qp):
+            self.dataset[instance.id] = DataSetInstance(
+                instance.instance, *(set.union(instance.tags, tags)))
+            for tag in tags:
+                self.by_tag[tag].add(instance)
+    
 class DataSet(object):
-    def __init__(self, storage = None):
+    def __init__(self, storage = None, filter=None):
         self.storage = storage if storage is not None else Storage()
+        self.filter = filter if filter is not None else set()
         
     def __getitem__(self, qp):
-        return self.storage.query(qp)
+        if id(qp) in self.storage.datasets:
+            if len(self.filter - self.storage.datasets[id(qp)].tags) > 0:
+                raise KeyError(qp)
+            return self.storage.datasets[id(qp)].tags - self.filter
+        return DataSet(self.storage, set.union(self.filter, to_tagset(qp)))
 
-    def __contains__(self, qp):
-        if id(qp) in self.storage.datasets: return True
-        return len(self[qp]) > 0
-    
     def __setitem__(self, key, value):
-        if isinstance(key, slice) and key.start is None and key.stop is None and key.step is None:
-            key = ()
-        if key is None:
-            key = ()
-        if not isinstance(key, tuple): key = (key,)
-        self.storage.add(value, *key)
+        self.storage.add(value, *set.union(self.filter, to_tagset(key)))
 
     def __delitem__(self, key):
-        if not isinstance(key, tuple): key = (key,)
-        self.storage.remove(key)
+        self.storage.remove(
+            set.union(self.filter, set.union(self.filter, to_tagset(key))))
 
     def __repr__(self):
-        return "\n".join(repr(instance) for instance in self.storage.datasets.values())
+        return "\n".join(repr(instance)
+                         for instance in self.storage.query(self.filter))
+
+    def __len__(self):
+        return len(self.storage.instance_query(self.filter))
+
+    def __contains__(self, qp):
+        if id(qp) in self.storage.datasets:
+            return len(self.filter - self.storage.datasets[id(qp)].tags) == 0
+        return len(self[qp]) > 0
+    
+    def __iter__(self):
+        return iter(self.storage.instance_query(self.filter))
+
+    def __eq__(self, other):
+        return set(self) == set(other)
+    
+    def __iadd__(self, tags):
+        self.storage.tag(self.filter, *to_tagset(tags))
+
+    def __isub__(self, tags):
+        self.storage.untag(self.filter, *to_tagset(tags))
