@@ -166,6 +166,22 @@ class TestDataSet(unittest.TestCase):
         ds["b", "c"] = "Fie"
         ds["a", "b"] -= "b"        
         self.assertEqual(ds["b"], {"Fie"})
+
+    def test_triggers(self):
+        ds = eop.DataSet()
+        trigger_status = {}
+        @eop.on(ds["a"])
+        def on_a(*tags, **kw):
+            trigger_status["result"] = (tags, kw)
+            
+        ds["a", "b"] = "Foo"
+        self.assertIn("result", trigger_status)
+        self.assertEqual(trigger_status["result"][1]["action"], "add")
+        self.assertEqual(trigger_status["result"][1]["instance"], "Foo")
+        del trigger_status["result"]
+        
+        ds["b", "c"] = "Fie"
+        self.assertNotIn("result", trigger_status)
         
 if __name__ == '__main__':
     unittest.main()
