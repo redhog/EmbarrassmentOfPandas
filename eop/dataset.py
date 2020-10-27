@@ -27,7 +27,7 @@ def to_tagset(key):
         key = ()
     if not isinstance(key, (list, tuple, set)):
         key = (key),
-    return set(tagify(item) for item in key)
+    return frozenset(tagify(item) for item in key)
 
 class Tag(object):
     def __init__(self, *arg, **attrs):
@@ -75,7 +75,7 @@ class Storage(object):
 
     def trigger(self, *tags, **kw):
         for handler_tags, handler in self.handlers.items():
-            if len(handler_tags - set(tags)) == 0:
+            if len(handler_tags - frozenset(tags)) == 0:
                 handler(*tags, **kw)
         
     def add(self, instance, *tags):
@@ -93,14 +93,14 @@ class Storage(object):
             
     def query(self, qp):
         if not qp:
-            return set(self.datasets.values())
-        qs = [set((self.datasets[id(t)],))
+            return frozenset(self.datasets.values())
+        qs = [frozenset((self.datasets[id(t)],))
               if id(t) in self.datasets
-              else set(self.by_tag.get(tagify(t), ()))
+              else frozenset(self.by_tag.get(tagify(t), ()))
               for t in qp]
         if not qs:
-            return set()
-        return {instance for instance in set.intersection(*qs)}
+            return frozenset()
+        return {instance for instance in frozenset.intersection(*qs)}
             
     def instance_query(self, qp):
         return {instance.instance for instance in self.query(qp)}
@@ -113,7 +113,7 @@ class Storage(object):
     def untag(self, qp, *tags):
         for old_instance in self.query(qp):
             instance = DataSetInstance(
-                old_instance.instance, *(old_instance.all_tags - set(tags)))
+                old_instance.instance, *(old_instance.all_tags - frozenset(tags)))
             self.datasets[instance.id] = instance
             for tag in instance.all_tags:
                 self.by_tag[tag].add(instance)
@@ -142,7 +142,7 @@ class DataSet(object):
     def new_from_storage_and_filter(cls, storage = None, filter=None):
         self = object.__new__(cls)
         self.storage = storage if storage is not None else Storage()
-        self.filter = filter if filter is not None else set()
+        self.filter = filter if filter is not None else frozenset()
         return self
         
     def on(self, handler):
@@ -154,7 +154,7 @@ class DataSet(object):
     @property
     def tags(self):
         res = self.storage.query(self.filter)
-        if not res: return set()
+        if not res: return frozenset()
         return frozenset.union(*(instance.tags for instance in res))
         
     def __call__(self, *arg):
@@ -162,17 +162,17 @@ class DataSet(object):
         
     def __getitem__(self, qp):
         return type(self).new_from_storage_and_filter(
-            self.storage, set.union(self.filter, to_tagset(qp)))
+            self.storage, frozenset.union(self.filter, to_tagset(qp)))
 
     def __setitem__(self, key, value):
         # Make foo["tag1", "tag2"...] += "Ntag" work
         if isinstance(value, DataSet) and id(value.storage) == id(self.storage):
             return
-        self.storage.add(value, *set.union(self.filter, to_tagset(key)))
+        self.storage.add(value, *frozenset.union(self.filter, to_tagset(key)))
 
     def __delitem__(self, key):
         self.storage.remove(
-            set.union(self.filter, set.union(self.filter, to_tagset(key))))
+            set.union(self.filter, frozenset.union(self.filter, to_tagset(key))))
 
     def __repr__(self):
         return "\n".join(repr(instance)
@@ -188,7 +188,7 @@ class DataSet(object):
         return iter(self.storage.instance_query(self.filter))
 
     def __eq__(self, other):
-        return set(self) == set(other)
+        return frozenset(self) == frozenset(other)
     
     def __iadd__(self, tags):
         self.storage.tag(self.filter, *to_tagset(tags))
