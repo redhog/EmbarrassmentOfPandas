@@ -132,10 +132,19 @@ class Storage(object):
             self.trigger(action="tag", instance=instance.instance, tags=tags, *instance.all_tags)
     
 class DataSet(object):
-    def __init__(self, storage = None, filter=None):
+    def __new__(cls, items = []):
+        self = cls.new_from_storage_and_filter()
+        for instance, tags in items:
+            self.storage.add(instance, *tags)
+        return self
+    
+    @classmethod
+    def new_from_storage_and_filter(cls, storage = None, filter=None):
+        self = object.__new__(cls)
         self.storage = storage if storage is not None else Storage()
         self.filter = filter if filter is not None else set()
-
+        return self
+        
     def on(self, handler):
         self.storage.on(handler, *self.filter)
 
@@ -152,7 +161,8 @@ class DataSet(object):
         return self.__getitem__(arg)
         
     def __getitem__(self, qp):
-        return DataSet(self.storage, set.union(self.filter, to_tagset(qp)))
+        return type(self).new_from_storage_and_filter(
+            self.storage, set.union(self.filter, to_tagset(qp)))
 
     def __setitem__(self, key, value):
         # Make foo["tag1", "tag2"...] += "Ntag" work
@@ -187,3 +197,6 @@ class DataSet(object):
     def __isub__(self, tags):
         self.storage.untag(self.filter, *to_tagset(tags))
         return self
+
+    def items(self):
+        return ((instance.instance, instance.tags) for instance in self.storage.query(self.filter))
