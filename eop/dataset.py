@@ -94,7 +94,9 @@ class Storage(object):
     def query(self, qp):
         if not qp:
             return set(self.datasets.values())
-        qs = [set(self.by_tag.get(tagify(t), ()))
+        qs = [set((self.datasets[id(t)],))
+              if id(t) in self.datasets
+              else set(self.by_tag.get(tagify(t), ()))
               for t in qp]
         if not qs:
             return set()
@@ -140,14 +142,20 @@ class DataSet(object):
     def trigger(self, **kw):
         self.storage.trigger(*self.filter, **kw)
 
+    @property
+    def tags(self):
+        res = self.storage.query(self.filter)
+        if not res: return set()
+        return set.union(*(instance.tags for instance in res))
+        
     def __call__(self, *arg):
         return self.__getitem__(arg)
         
     def __getitem__(self, qp):
-        if id(qp) in self.storage.datasets:
-            if len(self.filter - self.storage.datasets[id(qp)].tags) > 0:
-                raise KeyError(qp)
-            return self.storage.datasets[id(qp)].tags - self.filter
+        # if id(qp) in self.storage.datasets:
+        #     if len(self.filter - self.storage.datasets[id(qp)].tags) > 0:
+        #         raise KeyError(qp)
+        #     return self.storage.datasets[id(qp)].tags - self.filter
         return DataSet(self.storage, set.union(self.filter, to_tagset(qp)))
 
     def __setitem__(self, key, value):

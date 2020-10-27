@@ -111,7 +111,7 @@ class TestDataSet(unittest.TestCase):
         ds = eop.DataSet()
         ds[:] = "Notags"
         self.assertIn("Notags", ds)
-        self.assertEqual(ds["Notags"], set())
+        self.assertEqual(ds["Notags"].tags, set())
 
     def test_intersection_query(self):
         ds = eop.DataSet()
@@ -135,8 +135,8 @@ class TestDataSet(unittest.TestCase):
     def test_complex_tag(self):
         ds = eop.DataSet()
         ds[{"src": "nanana"}] = "lala"
-        self.assertEqual(len(ds["lala"]), 1)
-        self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
+        self.assertEqual(len(ds["lala"].tags), 1)
+        self.assertEqual(list(ds["lala"].tags)[0]["src"], "nanana")
 
     def test_more_complex_tag(self):
         ds = eop.DataSet()
@@ -149,7 +149,7 @@ class TestDataSet(unittest.TestCase):
         ds = eop.DataSet()
         ds["src": "nanana"] = "lala"
         self.assertEqual(len(ds["lala"]), 1)
-        self.assertEqual(list(ds["lala"])[0]["src"], "nanana")
+        self.assertEqual(list(ds["lala"].tags)[0]["src"], "nanana")
 
     def test_add_tag(self):
         ds = eop.DataSet()
