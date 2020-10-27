@@ -172,8 +172,6 @@ class DataSet(object):
         return len(self.storage.instance_query(self.filter))
 
     def __contains__(self, qp):
-        if id(qp) in self.storage.datasets:
-            return len(self.filter - self.storage.datasets[id(qp)].tags) == 0
         return len(self[qp]) > 0
     
     def __iter__(self):
