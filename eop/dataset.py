@@ -52,11 +52,11 @@ class DataSetInstance(object):
     def __init__(self, instance, *tags):
         self.id = id(instance)
         self.instance = instance
-        self.tags = set(tags)
+        self.tags = frozenset(tags)
 
     @property
     def all_tags(self):
-        return set.union(self.tags, inspect.getmro(type(self.instance)))
+        return frozenset.union(self.tags, inspect.getmro(type(self.instance)))
         
     def __repr__(self):
         res = valuerepr(self.instance)
@@ -125,7 +125,7 @@ class Storage(object):
                 self.by_tag[tag] = weakref.WeakSet()
         for old_instance in self.query(qp):
             instance = DataSetInstance(
-                old_instance.instance, *(set.union(old_instance.tags, tags)))
+                old_instance.instance, *(frozenset.union(old_instance.tags, tags)))
             self.datasets[instance.id] = instance
             for tag in instance.all_tags:
                 self.by_tag[tag].add(instance)
@@ -155,7 +155,7 @@ class DataSet(object):
     def tags(self):
         res = self.storage.query(self.filter)
         if not res: return set()
-        return set.union(*(instance.tags for instance in res))
+        return frozenset.union(*(instance.tags for instance in res))
         
     def __call__(self, *arg):
         return self.__getitem__(arg)
