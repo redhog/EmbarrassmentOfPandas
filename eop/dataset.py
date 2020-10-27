@@ -152,10 +152,6 @@ class DataSet(object):
         return self.__getitem__(arg)
         
     def __getitem__(self, qp):
-        # if id(qp) in self.storage.datasets:
-        #     if len(self.filter - self.storage.datasets[id(qp)].tags) > 0:
-        #         raise KeyError(qp)
-        #     return self.storage.datasets[id(qp)].tags - self.filter
         return DataSet(self.storage, set.union(self.filter, to_tagset(qp)))
 
     def __setitem__(self, key, value):
