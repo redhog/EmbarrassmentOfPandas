@@ -134,7 +134,7 @@ class Storage(object):
 class DataSet(object):
     def __new__(cls, items = []):
         self = cls.new_from_storage_and_filter()
-        for instance, tags in items:
+        for tags, instance in items:
             self.storage.add(instance, *tags)
         return self
     
@@ -199,4 +199,10 @@ class DataSet(object):
         return self
 
     def items(self):
-        return ((instance.instance, instance.tags) for instance in self.storage.query(self.filter))
+        return ((instance.tags, instance.instance) for instance in self.storage.query(self.filter))
+
+    def keys(self):
+        return iter(self.tags)
+
+    def values(self):
+        return iter(self)
