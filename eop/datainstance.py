@@ -24,11 +24,11 @@ class DataInstance(special_numeric.SpecialNumeric):
 
     DEBUG = False
     
-    def __new__(cls, data = None, extension = None, meta=None, filter = None):
+    def __new__(cls, data = None, base = None, extension = None, meta=None, filter = None):
         if isinstance(data, containermod.Container):
             return cls.new_from_container(data, filter)
 
-        self = cls.new_from_data(data, extension, meta, filter)
+        self = cls.new_from_data(data, base, extension, meta, filter)
         if cls.DTypes is None:
             return self
 
@@ -39,11 +39,22 @@ class DataInstance(special_numeric.SpecialNumeric):
         return self2
 
     @classmethod
-    def new_from_data(cls, data = None, extension = None, meta=None, filter = None):
+    def new_from_data(cls, data = None, base = None, extension = None, meta=None, filter = None):
         self = object.__new__(cls)
         object.__setattr__(self, "filter", filter if filter is not None else filtermod.Filter())
+
+        if isinstance(data, pd.DataFrame):
+            if isinstance(data.columns, pd.MultiIndex):
+                data = {col: cls.DTypes.get(col, DataInstance)(data[col])
+                        if isinstance(data[col], pd.DataFrame)
+                        else data[col]
+                        for col in data.columns.levels[0]}
+                print("XXXXXXXXXX", data.keys())
+            else:
+                base = data
+        
         if isinstance(data, dict):
-            base = pd.DataFrame({key:value for key, value in data.items() if isinstance(value, list)})
+            base = pd.DataFrame({key:value for key, value in data.items() if isinstance(value, (list, np.ndarray, pd.Series))})
             def instancify(key, value):
                 if isinstance(value, DataInstance):
                     return value
@@ -55,9 +66,7 @@ class DataInstance(special_numeric.SpecialNumeric):
                 base[key] = np.bool_(False)
             for key in basecols:
                 extension[key] = np.bool_(False)
-            object.__setattr__(self, "data", containermod.Container(base, extension, meta))
-        else:
-            object.__setattr__(self, "data", containermod.Container(data, extension, meta))
+        object.__setattr__(self, "data", containermod.Container(base, extension, meta))
         return self
             
     @classmethod
