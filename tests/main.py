@@ -20,6 +20,9 @@ class Point3D(eop.DataInstance):
 class X(eop.DataInstance):
     DTypes = {"doi": np.dtype("int64")}
 
+class Y(eop.DataInstance):
+    DTypes = {"doi": np.dtype("int64"), "sub": Point3D}
+
 
 class TestDataInstance(unittest.TestCase):
     test_data_a = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "z": [7, 8, 9]})
@@ -87,6 +90,14 @@ class TestDataInstance(unittest.TestCase):
         sub.gazonk = 47
         main["sub"] = sub
         self.assertEqual(main["sub"].gazonk, 47)
+
+    def test_flatten(self):
+        sub = Point3D(self.test_data_a.copy())
+        main = Y(self.test_data_b.copy())
+        main["sub"] = sub
+
+        unflattened = Y(main.flatten())
+        self.assertEqual(str(main), str(unflattened))
         
 class TestDataSet(unittest.TestCase):
     def test_contains_tag(self):

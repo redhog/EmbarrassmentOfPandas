@@ -8,7 +8,7 @@ class Container(object):
             extension = base.iloc[:1].reset_index(drop=True).astype("bool")
             extension[extension.columns] = np.bool_(False)
         self.base = base if base is not None else pd.DataFrame()
-        self.extension = extension if extension is not None else pd.DataFrame([{}])
+        self.extension = extension if extension is not None else pd.DataFrame([{}], index=[0])
         self.meta = meta if meta is not None else {}
         
     def is_extension_col(self, col):

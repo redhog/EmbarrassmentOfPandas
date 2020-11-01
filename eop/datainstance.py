@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import types
+import sys
 
 from . import special_numeric
 from . import filter as filtermod
@@ -45,11 +46,10 @@ class DataInstance(special_numeric.SpecialNumeric):
 
         if isinstance(data, pd.DataFrame):
             if isinstance(data.columns, pd.MultiIndex):
-                data = {col: cls.DTypes.get(col, DataInstance)(data[col])
+                data = {col: (cls.DTypes if cls.DTypes is not None else {}).get(col, DataInstance)(data[col])
                         if isinstance(data[col], pd.DataFrame)
                         else data[col]
                         for col in data.columns.levels[0]}
-                print("XXXXXXXXXX", data.keys())
             else:
                 base = data
         
@@ -78,7 +78,7 @@ class DataInstance(special_numeric.SpecialNumeric):
         return self
         
     @classmethod
-    def new_empty(cls):
+    def new_empty(cls, index=None):
         base = None
         extension = None
         meta = None
@@ -86,8 +86,10 @@ class DataInstance(special_numeric.SpecialNumeric):
             dtypes = cls.DTypes
             if not isinstance(dtypes, pd.Series): dtypes = pd.Series(dtypes)
             base_dtypes = dtypes.map(lambda x: np.dtype('bool') if (type(x) is type and issubclass(x, DataInstance)) else x)
-            base = pd.DataFrame(columns=base_dtypes.index).astype(base_dtypes)
-            extension = pd.DataFrame(dtypes.map(lambda x: x() if (type(x) is type and issubclass(x, DataInstance)) else np.bool_(False))).T
+            base = pd.DataFrame(columns=base_dtypes.index, index=index).astype(base_dtypes)
+            extension = pd.DataFrame(dtypes.map(lambda x: x.new_empty(index=index)
+                                                if (type(x) is type and issubclass(x, DataInstance))
+                                                else np.bool_(False))).T
         if cls.Meta is not None:
             meta = dict(cls.Meta)
         self = object.__new__(cls)
@@ -151,7 +153,8 @@ class DataInstance(special_numeric.SpecialNumeric):
     def assign(self, other, prefix=()):
         def log(*arg):
             if self.DEBUG:
-                print(("  " * len(prefix)) + " ".join(str(item) for item in arg))
+                sys.stderr.write("%s\n" % (("  " * len(prefix)) + " ".join(str(item) for item in arg),))
+                sys.stderr.flush()
         log(".".join(str(item) for item in prefix) + ":")
         if self.filter.is_extractable:
             col = self.filter.col[-1]
@@ -167,6 +170,7 @@ class DataInstance(special_numeric.SpecialNumeric):
             if col_pos is not None or not self.filter.col:
                 log("Include all columns")
                 for new_col in set(other_cols) - set(self.data.base.columns):
+                    log("Creating missing col", new_col)
                     if other.data.extension.loc[0, new_col] is np.bool_(False):
                         self.data.base[new_col] = np.NaN
                         self.data.extension[new_col] = np.bool_(False)
@@ -174,9 +178,7 @@ class DataInstance(special_numeric.SpecialNumeric):
                         sub = other.data.extension.loc[0, new_col]
                         dtype = type(sub)
                         self.data.base[new_col] = np.bool_(False)
-                        self.data.extension[new_col] = dtype(containermod.Container(pd.DataFrame([{} for x in range(len(self.data.base))]),
-                                                                       pd.DataFrame([{} for x in range(len(self.data.base))]),
-                                                                       dict(sub.data.meta)))
+                        self.data.extension[new_col] = dtype.new_empty(index=self.data.base.index)
 
             other_base = other.data.base.loc[other_rows, other_cols]
             other_extension = other.data.extension[other_cols]
@@ -211,7 +213,7 @@ class DataInstance(special_numeric.SpecialNumeric):
                 new = (self.data.base.index ^ other_base.index) & other_base.index                
                 self.data.base.loc[existing, cols] = other_base.loc[existing]
                 self.data.base = self.data.base.append(other_base.loc[new])
-                
+
             for col in other_extension.columns:
                 if col not in self.data.extension.columns: continue
                 if not self.data.is_extension_col(col): continue
@@ -237,8 +239,11 @@ class DataInstance(special_numeric.SpecialNumeric):
             for col in ext.columns:
                 base[col] = ext[col]
 
-        levels = base.columns.map(len).max()
-        base.columns = pd.MultiIndex.from_tuples((col + (("",) * levels))[:levels] for col in base.columns)
+        if len(base.columns):
+            levels = base.columns.map(len).max()
+            base.columns = pd.MultiIndex.from_tuples((col + (("",) * levels))[:levels] for col in base.columns)
+        else:
+            base.columns = pd.MultiIndex(codes=[[]], levels = [[]])
         
         return base
 
@@ -300,7 +305,8 @@ class DataInstance(special_numeric.SpecialNumeric):
         return self.select(filtermod.Filter.from_item(item)).extract()
 
     def __setitem__(self, item, value):
-        self.select(filtermod.Filter.from_item(item)).assign(value)
+        selected = self.select(filtermod.Filter.from_item(item))
+        selected.assign(value)
 
     def __delitem__(self, item):
         pass
