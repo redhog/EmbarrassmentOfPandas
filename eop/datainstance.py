@@ -179,6 +179,9 @@ class DataInstance(special_numeric.SpecialNumeric):
 
             self.data.extension = pdutils.square_assign(
                 self.data.extension, pd.Index([0]), cols, pd.DataFrame(columns=other_extension.columns, index=[0]), rename)
+
+            if rename:
+                other_extension.columns = columns
             
             columns_to_add = other_extension.columns.difference(cols)
             
