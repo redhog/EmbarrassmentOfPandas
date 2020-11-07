@@ -19,6 +19,8 @@ class Loc(object):
     def __setitem__(self, item, value):
         if not isinstance(item, tuple): item = (item,None)
         self.instance.select(filtermod.Filter.from_item(item)).assign(value)
+
+class NoAction(object): pass
         
 class DataInstance(special_numeric.SpecialNumeric):
     DTypes = None
@@ -181,7 +183,7 @@ class DataInstance(special_numeric.SpecialNumeric):
                 self.data.extension, pd.Index([0]), cols, pd.DataFrame(columns=other_extension.columns, index=[0]), rename)
 
             if rename:
-                other_extension.columns = columns
+                other_extension.columns = cols
             
             columns_to_add = other_extension.columns.difference(cols)
             
@@ -284,6 +286,7 @@ class DataInstance(special_numeric.SpecialNumeric):
         return self.select(filtermod.Filter.from_item(item)).extract()
 
     def __setitem__(self, item, value):
+        if value is NoAction: return
         selected = self.select(filtermod.Filter.from_item(item))
         selected.assign(value)
 
@@ -292,6 +295,7 @@ class DataInstance(special_numeric.SpecialNumeric):
 
     def __ilshift__(self, value):
         self.assign(value, rename = True)
+        return NoAction
     
     def __getattr__(self, name):
         if name in self.data.meta:
