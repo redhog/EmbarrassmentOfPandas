@@ -175,18 +175,13 @@ class DataInstance(special_numeric.SpecialNumeric):
                 rows = other_base.index.intersection(self.data.base.index)
 
             # FIXME: Handle column/row rename here...
-            self.data.base = pdutils.square_assign(self.data.base, rows, cols, other_base)
+            self.data.base = pdutils.square_assign(self.data.base, rows, cols, other_base, rename)
+
+            self.data.extension = pdutils.square_assign(
+                self.data.extension, pd.Index([0]), cols, pd.DataFrame(columns=other_extension.columns, index=[0]), rename)
             
             columns_to_add = other_extension.columns.difference(cols)
-            columns_to_replace = cols.intersection(other_extension.columns)
-            columns_to_remove = cols.difference(other_extension.columns)
-
-            self.data.extension = self.data.extension.drop(columns=columns_to_remove)
-
-            new_cols = pd.DataFrame(columns=columns_to_add, index=self.data.extension.index)
-            new_cols.loc[:,:] = np.NaN
-            self.data.extension = pd.concat([self.data.extension, new_cols], axis=1)
-
+            
             for new_col in columns_to_add:
                 if other.data.is_extension_col(new_col):
                     sub = other_extension.loc[0, new_col]
