@@ -29,8 +29,36 @@ test_data_a = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6], "z": [7, 8, 9]})
 test_data_b =  pd.DataFrame({"doi": [77, 88, 99]})
 test_data_c =  pd.DataFrame({"nana": [2, 3, 5]})
 
+nrcols = 10
+nrrows = 10
+test_data_d = pd.DataFrame({chr(97+x): np.linspace(0, 1, nrcols) * (10**x) for x in range(nrrows)})
+test_data_d = test_data_d.set_index("a")
+
+replrows = (5,7)
+replcols = (5,7)
+test_data_e_columns = pd.Index([chr(97+x) for x in range(*replcols)])
+test_data_e_index = pd.Index(np.linspace(0, 1, nrrows)[replrows[0]:replrows[1]])
+test_data_e = pd.DataFrame(index=test_data_e_index, columns=test_data_e_columns)
+for col in test_data_e_columns:
+    test_data_e.loc[:,col] = ["%s:%s" % (col, row) for row in range(len(test_data_e_index))]
+test_data_e.rename(columns={test_data_e.columns[-1]: "newcol"}, index={test_data_e.index[-1]: "newrow"}, inplace=True)
+
+
 class TestDataInstance(unittest.TestCase):
-    
+    def test_square_assign(self):
+        d = eop.DataInstance(test_data_d)
+        e = eop.DataInstance(test_data_e)
+        d[test_data_e_index, test_data_e_columns] = e
+        self.assertEqual(d[0.5555555555555556, "f"], "f:0")
+        self.assertEqual(d["newrow", "newcol"], "g:1")
+
+    def test_square_assign_rename(self):
+        d = eop.DataInstance(test_data_d)
+        e = eop.DataInstance(test_data_e)
+        d[test_data_e_index, test_data_e_columns] <<= e
+        self.assertEqual(d[0.5555555555555556, "f"], "f:0")
+        self.assertEqual(d[0.6666666666666666, "g"], "g:1")
+        
     def test_sub(self):
         sub = eop.DataInstance(test_data_a.copy())
         main = eop.DataInstance(test_data_b.copy())
