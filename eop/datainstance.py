@@ -6,6 +6,7 @@ import sys
 from . import special_numeric
 from . import filter as filtermod
 from . import container as containermod
+from . import pdutils
 
 class Loc(object):
     def __init__(self, instance):
@@ -63,9 +64,9 @@ class DataInstance(special_numeric.SpecialNumeric):
             basecols = list(base.columns)
             extcols = list(extension.columns)
             for key in extcols:
-                base[key] = np.bool_(False)
+                base[key] = np.NaN
             for key in basecols:
-                extension[key] = np.bool_(False)
+                extension[key] = np.NaN
         object.__setattr__(self, "data", containermod.Container(base, extension, meta))
         return self
             
@@ -89,7 +90,7 @@ class DataInstance(special_numeric.SpecialNumeric):
             base = pd.DataFrame(columns=base_dtypes.index, index=index).astype(base_dtypes)
             extension = pd.DataFrame(dtypes.map(lambda x: x.new_empty(index=index)
                                                 if (type(x) is type and issubclass(x, DataInstance))
-                                                else np.bool_(False))).T
+                                                else np.NaN)).T
         if cls.Meta is not None:
             meta = dict(cls.Meta)
         self = object.__new__(cls)
@@ -108,11 +109,11 @@ class DataInstance(special_numeric.SpecialNumeric):
             return self        
         filter = self.filter
         ext = filter.apply(self.data.extension, row=False).iloc[0]
-        if ext is np.bool_(False):
+        if isinstance(ext, DataInstance):
+            return ext.select(filter.reset(col=True))
+        else:
             # FIXME: Make a Column class to wrap here...
             return filter.apply(self.data.base)
-        else:
-            return ext.select(filter.reset(col=True))
 
     @property
     def filtered(self):
@@ -121,11 +122,11 @@ class DataInstance(special_numeric.SpecialNumeric):
 
     @property
     def base_columns(self):
-        return self.data.extension.loc[0].loc[self.data.extension.loc[0] == np.bool_(False)].index
+        return self.data.extension.loc[0].loc[self.data.extension.loc[0].isna()].index
 
     @property
     def extension_columns(self):
-        return self.data.extension.loc[0].loc[self.data.extension.loc[0] != np.bool_(False)].index
+        return self.data.extension.loc[0].loc[~self.data.extension.loc[0].isna()].index
     
     @property
     def base(self):
@@ -139,86 +140,66 @@ class DataInstance(special_numeric.SpecialNumeric):
         if len(res.columns) == 0: return res
         return pd.DataFrame(res.apply(
             lambda x:
-            np.bool_(False)
-            if x.loc[0] is np.bool_(False)
+            np.NaN
+            if x.loc[0] is np.NaN
             else x.iloc[0].select(self.filter.reset(col=True)))).T
 
     def wrap(self, col):
         return DataInstance(
             containermod.Container(
-                pd.DataFrame({col:np.zeros(len(self.data.base)).astype("bool")}, index=self.data.base.index),
+                pd.DataFrame(columns=[col], index=self.data.base.index),
                 pd.DataFrame({col:[self.unselect(row=True)]}))
         ).select(self.filter.reset(col=True))
     
-    def assign(self, other, prefix=()):
+    def assign(self, other, rename=False, prefix=()):
         def log(*arg):
             if self.DEBUG:
                 sys.stderr.write("%s\n" % (("  " * len(prefix)) + " ".join(str(item) for item in arg),))
                 sys.stderr.flush()
-        log(".".join(str(item) for item in prefix) + ":")
+        log("%s: [%s] = [%s/%s]" % (".".join(str(item) for item in prefix) + ":", self.filter, other.base.columns, other.base.index))
+        
         if self.filter.is_extractable:
             col = self.filter.col[-1]
             log("Extract", col)
             self.unselect(col=True).assign(
-                other.wrap(col), prefix=prefix + ("Wrapped",))
+                other.wrap(col), rename=rename, prefix=prefix + ("Wrapped",))
         else:
             rows, cols = self.filtered
-            other_rows, other_cols = other.filtered
-            row_pos = self.filter.row_position
-            col_pos = self.filter.col_position
+            
+            other_base = other.filter.apply(other.data.base)
+            other_extension = other.filter.apply(other.data.extension)
+            
+            if not self.filter.col:
+                cols = other_base.columns.intersection(self.data.base.columns)
+            if not self.filter.row:
+                rows = other_base.index.intersection(self.data.base.index)
 
-            if col_pos is not None or not self.filter.col:
-                log("Include all columns")
-                for new_col in set(other_cols) - set(self.data.base.columns):
-                    log("Creating missing col", new_col)
-                    if other.data.extension.loc[0, new_col] is np.bool_(False):
-                        self.data.base[new_col] = np.NaN
-                        self.data.extension[new_col] = np.bool_(False)
-                    else:
-                        sub = other.data.extension.loc[0, new_col]
-                        dtype = type(sub)
-                        self.data.base[new_col] = np.bool_(False)
-                        self.data.extension[new_col] = dtype.new_empty(index=self.data.base.index)
+            # FIXME: Handle column/row rename here...
+            self.data.base = pdutils.square_assign(self.data.base, rows, cols, other_base)
+            
+            columns_to_add = other_extension.columns.difference(cols)
+            columns_to_replace = cols.intersection(other_extension.columns)
+            columns_to_remove = cols.difference(other_extension.columns)
 
-            other_base = other.data.base.loc[other_rows, other_cols]
-            other_extension = other.data.extension[other_cols]
+            self.data.extension = self.data.extension.drop(columns=columns_to_remove)
 
-            if len(cols) and self.filter.col:
-                log("Copy columns by position", cols)
-                # FIXME: Handle replacing columns
-                assert len(cols) == len(other_cols), "Both instances must have the same number of columns"
-                renames = dict(zip(other_cols, cols))
-                other_base = other_base.rename(columns=renames)
-                other_extension = other_extension.rename(columns=renames)
-            else:
-                log("Update or columns", cols)
-                cols = other_cols
-                
-            def insert(df1, df2, pos):
-                idx = self.data.base.index.get_loc(pos)
-                return df1.iloc[:idx].append(df2).append(df1.iloc[idx:])
+            new_cols = pd.DataFrame(columns=columns_to_add, index=self.data.extension.index)
+            new_cols.loc[:,:] = np.NaN
+            self.data.extension = pd.concat([self.data.extension, new_cols], axis=1)
 
-            if row_pos is not None:
-                log("Insert rows at", row_pos)
-                self.data.base = insert(self.data.base, other_base, row_pos)
-            elif len(rows) == len(other_base):
-                log("Update rows", len(rows), cols)
-                self.data.base.loc[rows, cols] = other_base
-            elif self.filter.row:
-                log("Replace rows", len(rows), len(other_base))
-                self.data.base = insert(self.data.base.drop(rows), other_base, next(iter(rows)))
-            else:
-                log("Merge rows", len(rows), len(other_base))
-                existing = self.data.base.index & other_base.index
-                new = (self.data.base.index ^ other_base.index) & other_base.index                
-                self.data.base.loc[existing, cols] = other_base.loc[existing]
-                self.data.base = self.data.base.append(other_base.loc[new])
+            for new_col in columns_to_add:
+                if other.data.is_extension_col(new_col):
+                    sub = other_extension.loc[0, new_col]
+                    dtype = type(sub)
+                    self.data.extension[new_col] = dtype.new_empty(index=self.data.base.index)
 
             for col in other_extension.columns:
-                if col not in self.data.extension.columns: continue
                 if not self.data.is_extension_col(col): continue
-                log("Assign extension column", col)
-                self.data.extension.loc[0, col].select(self.filter.reset(col=True)).assign(other_extension.loc[0, col], prefix=prefix+(col,))
+                log("Assign extension column", col, self.data.extension.loc[0, col])
+                self.data.extension.loc[0, col].select(
+                    self.filter.reset(col=True)
+                ).assign(
+                    other.extension.loc[0, col], rename=rename, prefix=prefix+(col,))
 
             self.data.meta.update(other.data.meta)
                 
@@ -250,7 +231,7 @@ class DataInstance(special_numeric.SpecialNumeric):
     @property
     def dtypes(self):
         dtypes = self.data.base.dtypes.copy()
-        extcols = self.data.extension.loc[0] != np.bool_(False)
+        extcols = ~self.data.extension.loc[0].isna()
         dtypes[extcols] = self.data.extension.loc[0][extcols].map(lambda x: type(x))
         dtypes = pd.DataFrame(dtypes).T
         return self.filter.reset(row=True).apply(dtypes).loc[0]
@@ -310,6 +291,9 @@ class DataInstance(special_numeric.SpecialNumeric):
 
     def __delitem__(self, item):
         pass
+
+    def __ilshift__(self, value):
+        self.assign(value, rename = True)
     
     def __getattr__(self, name):
         if name in self.data.meta:
@@ -345,3 +329,4 @@ class DataInstance(special_numeric.SpecialNumeric):
             del self.data.meta[name]
         except:
             raise AttributeError(name)
+        
