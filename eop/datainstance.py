@@ -146,11 +146,11 @@ class DataInstance(special_numeric.SpecialNumeric):
             if x.loc[0] is np.NaN
             else x.iloc[0].select(self.filter.reset(col=True)))).T
 
-    def wrap(self, col):
+    def wrap(self, col, value):
         return DataInstance(
             containermod.Container(
                 pd.DataFrame(columns=[col], index=self.data.base.index),
-                pd.DataFrame({col:[self.unselect(row=True)]}))
+                pd.DataFrame({col:[value.unselect(row=True)]}))
         ).select(self.filter.reset(col=True))
     
     def assign(self, other, rename=False, prefix=()):
@@ -164,7 +164,7 @@ class DataInstance(special_numeric.SpecialNumeric):
             col = self.filter.col[-1]
             log("Extract", col)
             self.unselect(col=True).assign(
-                other.wrap(col), rename=rename, prefix=prefix + ("Wrapped",))
+                self.wrap(col, other), rename=rename, prefix=prefix + ("Wrapped",))
         else:
             rows, cols = self.filtered
             
@@ -176,7 +176,6 @@ class DataInstance(special_numeric.SpecialNumeric):
             if not self.filter.row:
                 rows = other_base.index.intersection(self.data.base.index)
 
-            # FIXME: Handle column/row rename here...
             self.data.base = pdutils.square_assign(self.data.base, rows, cols, other_base, rename)
 
             self.data.extension = pdutils.square_assign(
@@ -191,7 +190,7 @@ class DataInstance(special_numeric.SpecialNumeric):
                 if other.data.is_extension_col(new_col):
                     sub = other_extension.loc[0, new_col]
                     dtype = type(sub)
-                    self.data.extension[new_col] = dtype.new_empty(index=self.data.base.index)
+                    self.data.extension[new_col] = dtype.new_empty(index=sub.data.base.iloc[0:].index.copy())
 
             for col in other_extension.columns:
                 if not self.data.is_extension_col(col): continue
@@ -212,11 +211,16 @@ class DataInstance(special_numeric.SpecialNumeric):
             prefix = prefix + ("<%s.%s%s>" % (t.__module__, t.__name__, f),)
         
         base = self.base
+        if not isinstance(base.index, pd.MultiIndex):
+            base.index = pd.MultiIndex(levels=[base.index], codes=[pd.RangeIndex(len(base.index))])
         base.columns = [prefix + (col if isinstance(col, tuple) else (col,)) for col in base.columns]
         extension = self.extension
         extension = [extension.loc[0, col].flatten(prefix + (col if isinstance(col, tuple) else (col,)), include_types)
                      for col in extension.columns]
         for ext in extension:
+            if len(base.index.levels) < len(ext.index.levels):
+                columns = ext.index.names[len(base.index.levels):]
+                ext = ext.reset_index(columns).pivot(columns=columns)
             for col in ext.columns:
                 base[col] = ext[col]
 
