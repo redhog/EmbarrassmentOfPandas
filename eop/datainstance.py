@@ -154,11 +154,15 @@ class DataInstance(special_numeric.SpecialNumeric):
         ).select(self.filter.reset(col=True))
     
     def assign(self, other, rename=False, prefix=()):
-        def log(*arg):
+        def log(*arg, **kw):
             if self.DEBUG:
-                sys.stderr.write("%s\n" % (("  " * len(prefix)) + " ".join(str(item) for item in arg),))
+                p = "  " * len(prefix) + kw.get("indent", "  ")
+                m = " ".join(str(item) for item in arg)
+                m = p + m.replace("\n", "\n" + p) + "\n"
+                sys.stderr.write(m)
                 sys.stderr.flush()
-        log("%s: [%s] = [%s/%s]" % (".".join(str(item) for item in prefix) + ":", self.filter, other.base.columns, other.base.index))
+        log("Assign %s" % ".".join(str(item) for item in prefix), indent="")
+        log("[%s] = [%s/%s]" % (self.filter, other.base.columns, other.base.index))
         
         if self.filter.is_extractable:
             col = self.filter.col[-1]
@@ -178,8 +182,15 @@ class DataInstance(special_numeric.SpecialNumeric):
 
             self.data.base = pdutils.square_assign(self.data.base, rows, cols, other_base, rename)
 
+            other_extension_columns = pd.DataFrame(columns=other_extension.columns, index=[0])
+            norows = pd.Index([0])
             self.data.extension = pdutils.square_assign(
-                self.data.extension, pd.Index([0]), cols, pd.DataFrame(columns=other_extension.columns, index=[0]), rename)
+                self.data.extension,
+                norows, cols,
+                other_extension_columns,
+                rename,
+                remove=False, replace=False
+            )
 
             if rename:
                 other_extension.columns = cols
